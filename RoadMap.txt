@@ -1,6 +1,6 @@
  Checklist: Sampark Bhai
 Day 1: Setup & Multi-Emergency Gemma 4 Pipe
-[ ] Repo & Dependencies: Create your GitHub repository (Sampark-Saathi) and install packages (google-genai, gradio, gtts, geopy).
+[] Repo & Dependencies: Create your GitHub repository (Sampark-Saathi) and install packages (google-genai, gradio, gtts, geopy).
 
 [ ] Multi-Category System Prompt: Configure Gemma 4 to output structured JSON categorizing reports into MEDICAL, FIRE, POLICE, or DISASTER.
 
