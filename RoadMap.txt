@@ -1,0 +1,35 @@
+ Checklist: Sampark Bhai
+Day 1: Setup & Multi-Emergency Gemma 4 Pipe
+[ ] Repo & Dependencies: Create your GitHub repository (Sampark-Saathi) and install packages (google-genai, gradio, gtts, geopy).
+
+[ ] Multi-Category System Prompt: Configure Gemma 4 to output structured JSON categorizing reports into MEDICAL, FIRE, POLICE, or DISASTER.
+
+[ ] Voice Test: Test sending text to gTTS to verify localized audio playback.
+
+Day 2: Audio Pipeline & Geolocation Routing
+[ ] Gradio UI Setup: Run app.py to create a voice-first UI featuring a central recording button.
+
+[ ] Speech-to-Text (STT): Wire up local voice transcription (via Whisper, Bhashini, or Google Speech API) to convert regional audio into English text for Gemma 4.
+
+[ ] Dynamic Hospital/Station Routing: Use geopy to query the nearest relevant emergency hub based on Gemma 4's recommended facility type (e.g., Police Station vs. Fire Station vs. Hospital).
+
+Day 3: Emergency UI Styling & Safety Guardrails
+[ ] Color-Coded Dashboard: Set dynamic UI banners based on category (e.g., Red for Fire/Critical Medical, Blue for Police, Orange for Disaster).
+
+[ ] Manual Text Fallback: Add a text input box so users can type symptoms or emergency descriptions if speech input fails.
+
+[ ] Disclaimers: Include a clear footer disclaimer ("Sampark Saathi is an AI guidance tool. In critical life-threatening situations, contact official local emergency numbers immediately.").
+
+Day 4: Kaggle Submission, Video & Commudle
+[ ] Demo Video (1-2 mins): Record your screen showing a user speaking an emergency into the mic, Gemma 4 categorizing it, and the app responding with spoken localized advice alongside nearest location guidance.
+
+[ ] Kaggle Write-up: Submit under the Kaggle competition page (aidurg-gemma-hackathon). Highlight how Gemma 4 powers multi-hazard triage and localized speech output.
+
+[ ] Commudle Check: Ensure every team member is registered individually on the Commudle event page to prevent disqualification.
+
+
+
+[ ] = Open(pending)
+[]  = Closed(done)
+
+Required Libaries = pip install gradio google-genai gtts geopy
