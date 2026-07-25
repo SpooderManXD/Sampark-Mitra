@@ -8,13 +8,11 @@ from sarvamai import SarvamAI
 api_key = os.environ.get("SARVAM_API_KEY")
 client = SarvamAI(api_subscription_key=api_key)
 
+# Global PyAudio instance to prevent Windows PortAudio thread deadlocks
+AUDIO_PY = pyaudio.PyAudio()
 
 def speech(text: str, lang: str = "hi-IN"):
-    """
-    Converts text to speech using Sarvam AI and plays it through the speakers.
-    """
     try:
-        # Default fallback if language detection failed
         if not lang:
             lang = "hi-IN"
 
@@ -25,16 +23,12 @@ def speech(text: str, lang: str = "hi-IN"):
             speaker="shubh",
         )
 
-        # Extract base64 audio payload from response
         if hasattr(response, "audios") and response.audios:
             audio_data = base64.b64decode(response.audios[0])
-
-            # Play audio in real-time
             wf = wave.open(io.BytesIO(audio_data), "rb")
-            p = pyaudio.PyAudio()
 
-            stream = p.open(
-                format=p.get_format_from_width(wf.getsampwidth()),
+            stream = AUDIO_PY.open(
+                format=AUDIO_PY.get_format_from_width(wf.getsampwidth()),
                 channels=wf.getnchannels(),
                 rate=wf.getframerate(),
                 output=True,
@@ -47,7 +41,6 @@ def speech(text: str, lang: str = "hi-IN"):
 
             stream.stop_stream()
             stream.close()
-            p.terminate()
 
     except Exception as e:
         print(f"Error playing TTS: {e}")
