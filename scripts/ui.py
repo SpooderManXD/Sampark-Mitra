@@ -113,31 +113,21 @@ _session = {
 # ---------------------------------------------------------------------------
 # HELPERS
 # ---------------------------------------------------------------------------
-def resolve_location(lat=None, lon=None):
-    """
-    Reverse geocodes coordinates to a readable location string.
-    Returns None if no location coordinates were captured or if resolution fails.
-    """
-    if lat is None or lon is None:
-        return None
+def resolve_location(lat=21.1938, lon=81.2849):
     try:
         loc  = geolocator.reverse(f"{lat}, {lon}")
-        if not loc or not loc.raw:
-            return None
         addr = loc.raw.get("address", {})
         place = (addr.get("village") or addr.get("town") or
-                 addr.get("city")    or addr.get("subdistrict"))
-        state = addr.get("state", "")
-        if place or state:
-            return f"{place or 'Area'}, {state}".strip(", ")
-        return None
+                 addr.get("city")    or addr.get("subdistrict") or "Local Area")
+        return f"{place}, {addr.get('state', '')}".strip(", ")
     except Exception:
-        return None
+        return "Local Area, Chhattisgarh"
 
 
 def generate_audio_file(text, lang_code="hi-IN"):
     """
     Produces a WAV file via Sarvam API client for gr.Audio autoplay in browser.
+    Single TTS playback via browser player.
     """
     if not text:
         return None
@@ -164,9 +154,9 @@ def generate_audio_file(text, lang_code="hi-IN"):
 
 def parse_tags(reply):
     tag, text = "NORMAL", reply
-    for t in ["[REQUEST IMAGE]", "[REQUEST_IMAGE]", "[EMERGENCY]", "[TRIAGE COMPLETE]", "[TRIAGE_COMPLETE]"]:
+    for t in ["[REQUEST_IMAGE]", "[EMERGENCY]", "[TRIAGE_COMPLETE]"]:
         if t in reply:
-            tag  = t.replace("_", " ")
+            tag  = t
             text = reply.replace(t, "").strip()
             break
     return tag, text
@@ -286,8 +276,8 @@ def build_orb_page(tag="NORMAL", response_text="",
                    upload_label="Upload Photo", mic_state="idle"):
     tag_color = {
         "[EMERGENCY]":      "#ef4444",
-        "[REQUEST IMAGE]":  "#f59e0b",
-        "[TRIAGE COMPLETE]":"#10b981"
+        "[REQUEST_IMAGE]":  "#f59e0b",
+        "[TRIAGE_COMPLETE]":"#10b981"
     }.get(tag, "#a78bfa")
 
     status_card = ""
@@ -303,7 +293,7 @@ def build_orb_page(tag="NORMAL", response_text="",
 
     # Image Upload Button displayed when model requests image
     upload_btn_html = ""
-    if tag == "[REQUEST IMAGE]":
+    if tag == "[REQUEST_IMAGE]":
         upload_btn_html = f"""
         <input type="file" id="img_file_input" accept="image/*" style="display:none;" onchange="sendImageToGradio(this)" />
         <button class="img-btn" onclick="document.getElementById('img_file_input').click()">
@@ -520,19 +510,6 @@ def build_orb_page(tag="NORMAL", response_text="",
 # JAVASCRIPT
 # ---------------------------------------------------------------------------
 GLOBAL_JS = """
-var _userLat = null;
-var _userLon = null;
-
-// Request location permission on load if available
-if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(function(pos) {
-        _userLat = pos.coords.latitude;
-        _userLon = pos.coords.longitude;
-    }, function(err) {
-        console.log("Geolocation permission not granted/failed:", err);
-    });
-}
-
 function sendTrigger(val) {
     const container = document.getElementById('router_input');
     const input = container
@@ -571,13 +548,7 @@ function startRecording() {
         .then(function(stream) {
             _audioChunks   = [];
             _isRecording   = true;
-            
-            var options = {};
-            if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm')) {
-                options = { mimeType: 'audio/webm' };
-            }
-            
-            _mediaRecorder = new MediaRecorder(stream, options);
+            _mediaRecorder = new MediaRecorder(stream);
 
             _mediaRecorder.ondataavailable = function(e) {
                 if (e.data && e.data.size > 0) _audioChunks.push(e.data);
@@ -586,7 +557,7 @@ function startRecording() {
             _mediaRecorder.onstop = function() {
                 _isRecording = false;
                 stream.getTracks().forEach(function(t) { t.stop(); });
-                var blob = new Blob(_audioChunks, {type: 'audio/webm'});
+                var blob = new Blob(_audioChunks, {type: 'audio/wav'});
                 sendAudioToGradio(blob);
             };
 
@@ -620,10 +591,6 @@ function sendAudioToGradio(blob) {
     var reader = new FileReader();
     reader.onloadend = function() {
         var base64Audio = reader.result;
-        // Append latitude & longitude if captured
-        if (_userLat && _userLon) {
-            base64Audio = base64Audio + "||" + _userLat + "||" + _userLon;
-        }
         var container = document.getElementById('audio_b64_input');
         var input     = container
             ? (container.querySelector('textarea') || container.querySelector('input'))
@@ -648,9 +615,6 @@ function sendImageToGradio(inputElem) {
     var reader = new FileReader();
     reader.onloadend = function() {
         var base64Img = reader.result;
-        if (_userLat && _userLon) {
-            base64Img = base64Img + "||" + _userLat + "||" + _userLon;
-        }
         var container = document.getElementById('image_b64_input');
         var input     = container
             ? (container.querySelector('textarea') || container.querySelector('input'))
@@ -727,22 +691,12 @@ def handle_audio_b64(audio_b64: str):
     if not audio_b64 or len(audio_b64) < 100:
         return error_page("No audio received. Please try again.")
 
-    lat, lon = None, None
-    if "||" in audio_b64:
-        parts = audio_b64.split("||")
-        audio_b64 = parts[0]
-        try:
-            lat = float(parts[1])
-            lon = float(parts[2])
-        except Exception:
-            pass
-
     if "," in audio_b64:
         audio_b64 = audio_b64.split(",", 1)[1]
 
     try:
         raw_bytes = base64.b64decode(audio_b64)
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".webm")
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
         tmp.write(raw_bytes)
         tmp.close()
         filepath = tmp.name
@@ -764,11 +718,9 @@ def handle_audio_b64(audio_b64: str):
 
     print(f"[Pipeline] Transcript={transcript!r}  Lang={lang_code!r}")
 
-    location_str = resolve_location(lat, lon)
-    location_tag = f"[Location: {location_str}]" if location_str else "[Location: None]"
-    
-    full_prompt  = f"{transcript}\n{location_tag}"
-    print(f"[Pipeline] Calling Gemma with prompt: {full_prompt}")
+    location_str = resolve_location()
+    full_prompt  = f"{transcript}\n[Location: {location_str}]"
+    print("[Pipeline] Calling Gemma...")
     raw_reply = ask_gemma(full_prompt)
     tag, clean = parse_tags(raw_reply)
     print(f"[Pipeline] Gemma tag={tag!r}: {clean[:80]!r}")
@@ -803,16 +755,6 @@ def handle_image_b64(image_b64: str):
             upload_label=upload_label
         ), None
 
-    lat, lon = None, None
-    if "||" in image_b64:
-        parts = image_b64.split("||")
-        image_b64 = parts[0]
-        try:
-            lat = float(parts[1])
-            lon = float(parts[2])
-        except Exception:
-            pass
-
     if "," in image_b64:
         image_b64 = image_b64.split(",", 1)[1]
 
@@ -831,10 +773,8 @@ def handle_image_b64(image_b64: str):
             upload_label=upload_label
         ), None
 
-    location_str = resolve_location(lat, lon)
-    location_tag = f"[Location: {location_str}]" if location_str else "[Location: None]"
-
-    full_prompt  = f"Here is the photo of the symptom.\n{location_tag}"
+    location_str = resolve_location()
+    full_prompt  = f"Here is the photo of the symptom.\n[Location: {location_str}]"
     print(f"[Pipeline] Passing image ({img_path}) to Gemma...")
     raw_reply = ask_gemma(full_prompt, image_path=img_path)
     tag, clean = parse_tags(raw_reply)
@@ -868,36 +808,6 @@ html, body, .gradio-container, .main, .contain, #component-0 {
     overflow-x: hidden;
 }
 
-/* Remove black top margin / header lines */
-.app, .gap, div[class^="svelte-"], .wrap, .container, .block {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
-    border-top: none !important;
-}
-.gradio-container > .main > .wrap {
-    padding: 0 !important;
-    gap: 0 !important;
-}
-
-/* Hide processing/loading overlay and progress bar */
-.progress-bar, .eta-bar, .generating, .loader,
-div.generating, .wrap.generating,
-.progress-text, .progress-level, .progress-level-inner,
-.meta-text, .eta, .loading {
-    display: none !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-}
-
-/* Hide the Gradio audio component frontend */
-#audio_output, .audio-container, [data-testid="audio"],
-.component-wrapper:has(audio), gradio-audio, .gr-audio {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0 !important;
-    overflow: hidden !important;
-}
-
 footer {display:none !important;}
 
 #router_input, #hidden_trigger_btn, #audio_b64_input, #audio_submit_btn, #image_b64_input, #image_submit_btn {
@@ -922,8 +832,7 @@ with gr.Blocks(title="Sampark Mitra", css=CSS, js=GLOBAL_JS) as demo:
     audio_output = gr.Audio(
         label="Sampark Mitra Response",
         autoplay=True,
-        visible=False,
-        elem_id="audio_output"
+        visible=False
     )
 
     hidden_trigger_btn.click(

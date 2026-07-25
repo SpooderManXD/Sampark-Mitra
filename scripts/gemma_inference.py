@@ -6,7 +6,7 @@ from google.genai import types
 api_key = os.environ.get("GOOGLE_API_KEY")
 client = genai.Client(
     api_key=api_key,
-    http_options=types.HttpOptions(timeout=30_000),
+    http_options=types.HttpOptions(timeout=30_000)
 )
 
 MODEL = "gemma-4-26b-a4b-it"
@@ -43,12 +43,9 @@ or
 
 6. Reply in the same language as the user.
 
-7. Must complete triage in 10 questions.
+7. Must complete diagnose in 10 questions.
 
-8. AT THE END OF TRIAGE ([TRIAGE COMPLETE] or [EMERGENCY]):
-   - Check if user location is provided in the prompt (e.g., [Location: <place>]).
-   - IF LOCATION IS PROVIDED: Use the Google Search tool to find real nearby Primary Health Centers (PHCs), clinics, or hospitals in that location, and suggest 1-2 actual hospital/clinic names.
-   - IF LOCATION IS "None" OR NOT PROVIDED: Politely ask the user to tell you their village, town, city, or district name so you can find the nearest clinic or hospital for them.
+8. At the end Ask the location of the person and suggest the name of a nearby clinic or hospital they can go to, using google search TOOL.
 """
 
 history = []
@@ -70,6 +67,7 @@ def ask_gemma(user_message: str, image_path: str = None) -> str:
             with open(image_path, "rb") as f:
                 img_bytes = f.read()
 
+            # Create proper Part object with inline image bytes
             image_part = types.Part.from_bytes(
                 data=img_bytes,
                 mime_type=mime_type
@@ -88,7 +86,7 @@ def ask_gemma(user_message: str, image_path: str = None) -> str:
     })
 
     try:
-        print("Sending request to Gemma API with Search Tool...")
+        print("Sending request to Gemma API...")
         response = client.models.generate_content(
             model=MODEL,
             contents=history,
@@ -101,6 +99,7 @@ def ask_gemma(user_message: str, image_path: str = None) -> str:
         reply = response.text
     except Exception as e:
         print(f"\nError during Gemma API call: {e}")
+        # Rollback history on error so state remains clean
         history.pop()
         return "क्षमा करें, एक तकनीकी समस्या आ गई है।"
 
