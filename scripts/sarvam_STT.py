@@ -127,7 +127,3 @@ def transcribe():
     return transcript_text, detected_lang
 
 
-if __name__ == "__main__":
-    text, lang = transcribe()
-    print(f"\nDetected Language: {lang}")
-    print(f"Transcript: {text}")

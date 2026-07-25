@@ -1,10 +1,12 @@
 from sarvam_STT import transcribe
+from sarvam_TTS import speech
 from google import genai
 from google.genai import types
 import os
 
 api_key = os.environ.get("GOOGLE_API_KEY")
 client=genai.Client(api_key=api_key)
+
 
 MODEL = "gemma-4-26b-a4b-it"
 
@@ -70,7 +72,7 @@ def ask_gemma(user_message: str):
     return reply
 
 
-def process_reply(reply: str):
+def process_reply(reply: str, lang: str):
 
     if "[REQUEST_IMAGE]" in reply:
         print("\n📷 IMAGE REQUIRED")
@@ -90,7 +92,7 @@ def process_reply(reply: str):
 
     else:
         print("\n🤖 Assistant")
-        print(reply)
+        print(speech(reply, lang))
 
 
 def main():
@@ -99,7 +101,9 @@ def main():
 
     while True:
 
-        text = transcribe()
+        result = transcribe()
+        text = result[0]
+        lang = result[1]
 
         if not text:
             continue
@@ -111,7 +115,7 @@ def main():
 
         reply = ask_gemma(text)
 
-        process_reply(reply)
+        process_reply(reply, lang)
 
 
 if __name__ == "__main__":
