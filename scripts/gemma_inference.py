@@ -73,26 +73,27 @@ def ask_gemma(user_message: str):
 
 
 def process_reply(reply: str, lang: str):
+    """Processes Gemma's response tags and triggers speech output."""
+    clean_text = reply
 
     if "[REQUEST_IMAGE]" in reply:
         print("\n📷 IMAGE REQUIRED")
-        print(reply.replace("[REQUEST_IMAGE]", "").strip())
-
-        # TODO:
-        # Open camera
-        # OR ask user to upload image
+        clean_text = reply.replace("[REQUEST_IMAGE]", "").strip()
 
     elif "[EMERGENCY]" in reply:
         print("\n🚨 EMERGENCY")
-        print(reply.replace("[EMERGENCY]", "").strip())
+        clean_text = reply.replace("[EMERGENCY]", "").strip()
 
     elif "[TRIAGE_COMPLETE]" in reply:
         print("\n✅ TRIAGE COMPLETE")
-        print(reply.replace("[TRIAGE_COMPLETE]", "").strip())
+        clean_text = reply.replace("[TRIAGE_COMPLETE]", "").strip()
 
     else:
         print("\n🤖 Assistant")
-        print(speech(reply, lang))
+
+    print(clean_text)
+    # Speak the output text
+    speech(clean_text, lang)
 
 
 def main():
