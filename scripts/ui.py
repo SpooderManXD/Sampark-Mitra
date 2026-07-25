@@ -11,7 +11,9 @@ Pipeline:
 import os
 import base64
 import tempfile
+import io
 import gradio as gr
+from pydub import AudioSegment
 from geopy.geocoders import Nominatim
 from sarvamai import SarvamAI
 
@@ -867,12 +869,17 @@ def handle_audio_b64(audio_b64: str):
 
     try:
         raw_bytes = base64.b64decode(audio_b64)
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".webm")
-        tmp.write(raw_bytes)
+        
+        # --- FIX: Convert WebM bytes directly to WAV using Pydub ---
+        audio_segment = AudioSegment.from_file(io.BytesIO(raw_bytes))
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+        audio_segment.export(tmp.name, format="wav")
         tmp.close()
         filepath = tmp.name
+        # -----------------------------------------------------------
+        
     except Exception as e:
-        print(f"[Audio] File write error: {e}")
+        print(f"[Audio] File conversion error: {e}")
         return error_page("Could not save audio. Please try again.")
 
     print(f"[Pipeline] Running STT on {filepath}")
@@ -1032,7 +1039,8 @@ footer {display:none !important;}
 }
 """
 
-with gr.Blocks(title="Sampark Mitra", css=CSS, js=GLOBAL_JS) as demo:
+# --- FIX: Gradio 6.0 CSS/JS moved to launch() ---
+with gr.Blocks(title="Sampark Mitra") as demo:
 
     router_input       = gr.Textbox(elem_id="router_input",       visible=True)
     hidden_trigger_btn = gr.Button("go", elem_id="hidden_trigger_btn", visible=True)
@@ -1070,4 +1078,4 @@ with gr.Blocks(title="Sampark Mitra", css=CSS, js=GLOBAL_JS) as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(css=CSS, js=GLOBAL_JS)
