@@ -63,7 +63,7 @@ def ask_gemma(user_message: str):
             contents=history,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
-                tools=[types.Tool(google_search=types.GoogleSearch())]
+                tools=[types.Tool(google_search=types.GoogleSearch())],
                 temperature=0.2,
             )
         )
