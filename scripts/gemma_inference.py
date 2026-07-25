@@ -5,7 +5,8 @@ from google.genai import types
 import os
 
 api_key = os.environ.get("GOOGLE_API_KEY")
-client=genai.Client(api_key=api_key)
+client=genai.Client(api_key=api_key,
+                    http_options=types.HttpOptions(timeout=30_000))
 
 
 MODEL = "gemma-4-26b-a4b-it"
@@ -44,7 +45,7 @@ or
 
 7. Must complete diagnose in 10 questions.
 
-8. At the end Ask the location of the person and suggest a nearby clinic or hospital they can go to.
+8. At the end Ask the location of the person and suggest the name of a nearby clinic or hospital they can go to, using google search TOOL.
 """
 
 history = []
