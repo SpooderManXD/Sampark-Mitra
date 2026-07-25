@@ -47,22 +47,27 @@ history = []
 
 
 def ask_gemma(user_message: str):
-
     history.append({
         "role": "user",
         "parts": [{"text": user_message}]
     })
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=history,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            temperature=0.2,
+    try:
+        print("Sending request to Gemma API...")
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=history,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                temperature=0.2,
+            )
         )
-    )
-
-    reply = response.text
+        reply = response.text
+    except Exception as e:
+        print(f"\nError during Gemma API call: {e}")
+        # Rollback history so state remains clean
+        history.pop()
+        return "क्षमा करें, एक तकनीकी समस्या आ गई है।"
 
     history.append({
         "role": "model",
