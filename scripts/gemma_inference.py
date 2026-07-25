@@ -1,13 +1,13 @@
-import os
-import mimetypes
+from sarvam_STT import transcribe
+from sarvam_TTS import speech
 from google import genai
 from google.genai import types
+import os
 
 api_key = os.environ.get("GOOGLE_API_KEY")
-client = genai.Client(
-    api_key=api_key,
-    http_options=types.HttpOptions(timeout=30_000)
-)
+client=genai.Client(api_key=api_key,
+                    http_options=types.HttpOptions(timeout=30_000))
+
 
 MODEL = "gemma-4-26b-a4b-it"
 
@@ -27,13 +27,13 @@ Rules:
 1. Ask ONLY ONE follow-up question at a time.
 2. If a visible symptom is mentioned (rash, swelling, burn, wound, injury, eye problem, mouth problem, skin disease, etc.), immediately reply with:
 
-[REQUEST IMAGE]
+[REQUEST_IMAGE]
 
 followed by a short explanation asking for a clear image.
 
 3. Once enough information has been collected, begin your reply with ONE of these tags:
 
-[TRIAGE COMPLETE]
+[TRIAGE_COMPLETE]
 or
 [EMERGENCY]
 
@@ -51,38 +51,10 @@ or
 history = []
 
 
-def ask_gemma(user_message: str, image_path: str = None) -> str:
-    """
-    Sends user message (and optional image filepath) to Gemma model and returns reply.
-    """
-    user_parts = []
-
-    # If an image is provided, read bytes and create a valid SDK Part object
-    if image_path and os.path.exists(image_path):
-        try:
-            mime_type, _ = mimetypes.guess_type(image_path)
-            if not mime_type:
-                mime_type = "image/jpeg"
-
-            with open(image_path, "rb") as f:
-                img_bytes = f.read()
-
-            # Create proper Part object with inline image bytes
-            image_part = types.Part.from_bytes(
-                data=img_bytes,
-                mime_type=mime_type
-            )
-            user_parts.append(image_part)
-            print(f"[Gemma] Successfully attached image from path: {image_path}")
-        except Exception as e:
-            print(f"[Gemma] Error loading image: {e}")
-
-    # Append text part
-    user_parts.append({"text": user_message})
-
+def ask_gemma(user_message: str):
     history.append({
         "role": "user",
-        "parts": user_parts
+        "parts": [{"text": user_message}]
     })
 
     try:
@@ -99,7 +71,7 @@ def ask_gemma(user_message: str, image_path: str = None) -> str:
         reply = response.text
     except Exception as e:
         print(f"\nError during Gemma API call: {e}")
-        # Rollback history on error so state remains clean
+        # Rollback history so state remains clean
         history.pop()
         return "क्षमा करें, एक तकनीकी समस्या आ गई है।"
 
@@ -109,3 +81,54 @@ def ask_gemma(user_message: str, image_path: str = None) -> str:
     })
 
     return reply
+
+
+def process_reply(reply: str, lang: str):
+    """Processes Gemma's response tags and triggers speech output."""
+    clean_text = reply
+
+    if "[REQUEST_IMAGE]" in reply:
+        print("\n IMAGE REQUIRED")
+        clean_text = reply.replace("[REQUEST_IMAGE]", "").strip()
+
+    elif "[EMERGENCY]" in reply:
+        print("\n EMERGENCY")
+        clean_text = reply.replace("[EMERGENCY]", "").strip()
+
+    elif "[TRIAGE_COMPLETE]" in reply:
+        print("\n TRIAGE COMPLETE")
+        clean_text = reply.replace("[TRIAGE_COMPLETE]", "").strip()
+
+    else:
+        print("\n Assistant")
+
+    print(clean_text)
+    # Speak the output text
+    speech(clean_text, lang)
+
+
+def main():
+
+    print("Health Assistant Started")
+
+    while True:
+
+        result = transcribe()
+        text = result[0]
+        lang = result[1]
+
+        if not text:
+            continue
+
+        print("\nYou:", text)
+
+        if text.lower() in ["exit", "quit", "stop"]:
+            break
+
+        reply = ask_gemma(text)
+
+        process_reply(reply, lang)
+
+
+if __name__ == "__main__":
+    main()
