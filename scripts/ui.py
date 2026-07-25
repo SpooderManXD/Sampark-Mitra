@@ -1,9 +1,11 @@
 """
-Sampark Bhai - Rural Emergency Triage Hub UI
-Integrates:
-  - Gemma AI Health Triage (gemma_inference.py)
-  - Sarvam STT & TTS (sarvam_STT.py, sarvam_TTS.py)
-  - Interactive Floating Language Dashboard & Dynamic Orb Navigation
+Sampark Mitra - Rural Emergency Triage Hub UI
+
+Pipeline:
+  1. Home page: click language word
+  2. Orb page: shows "press to talk" in chosen language
+  3. User records via gr.Audio mic in browser
+  4. On stop: transcribe_file() -> ask_gemma() -> generate_audio_file() -> playback
 """
 
 import os
@@ -13,377 +15,746 @@ import gradio as gr
 from geopy.geocoders import Nominatim
 from sarvamai import SarvamAI
 
-# Direct imports from your backend script modules
-from gemma_inference import ask_gemma
-from sarvam_STT import transcribe
-from sarvam_TTS import speech as sarvam_local_speech
+# ---------------------------------------------------------------------------
+# BACKEND IMPORTS
+# ---------------------------------------------------------------------------
+try:
+    from gemma_inference import ask_gemma
+except ImportError:
+    print("Warning: gemma_inference.py not found. Using mock.")
+    def ask_gemma(msg):
+        return "[TRIAGE_COMPLETE] System offline. Please seek nearest medical aid."
+
+try:
+    from sarvam_STT import transcribe_file
+except ImportError:
+    print("Warning: sarvam_STT.py not found. Using mock.")
+    def transcribe_file(fp):
+        return "Mock transcript for testing", "hi-IN"
+
+try:
+    from sarvam_TTS import speech as sarvam_local_speech
+except ImportError:
+    sarvam_local_speech = None
 
 # ---------------------------------------------------------------------------
-# 1. SETUP CLIENTS & GLOBALS
+# CLIENTS & GLOBALS
 # ---------------------------------------------------------------------------
-sarvam_key = os.environ.get("SARVAM_API_KEY")
-sarvam_client = SarvamAI(api_subscription_key=sarvam_key)
-geolocator = Nominatim(user_agent="sampark_bhai_app")
+sarvam_key    = os.environ.get("SARVAM_API_KEY")
+sarvam_client = SarvamAI(api_subscription_key=sarvam_key) if sarvam_key else None
+geolocator    = Nominatim(user_agent="sampark_mitra_app")
 
+# "press_to_talk" = "press to talk" in each language
 LANGUAGES = [
-    {"word": "शुरू करें",     "lang": "Hindi",     "code": "hi-IN", "back": "वापस जाएं",      "top": "15%", "left": "12%", "delay": "0s",   "rot": "-4deg"},
-    {"word": "தொடங்கு",       "lang": "Tamil",     "code": "ta-IN", "back": "முகப்பு",       "top": "22%", "left": "75%", "delay": "0.5s", "rot": "5deg"},
-    {"word": "ప్రారంభించు",    "lang": "Telugu",    "code": "te-IN", "back": "హోమ్",         "top": "35%", "left": "8%",  "delay": "1.2s", "rot": "-3deg"},
-    {"word": "ప్రారంభిసి",    "lang": "Kannada",   "code": "kn-IN", "back": "ಮುಖಪುಟ",       "top": "70%", "left": "15%", "delay": "0.8s", "rot": "6deg"},
-    {"word": "শুরু করুন",     "lang": "Bengali",   "code": "bn-IN", "back": "হোমে ফিরুন",    "top": "18%", "left": "45%", "delay": "1.5s", "rot": "-2deg"},
-    {"word": "સ્ટાર્ટ કરો",   "lang": "Gujarati",  "code": "gu-IN", "back": "પાછા જાઓ",     "top": "75%", "left": "78%", "delay": "0.3s", "rot": "-5deg"},
-    {"word": "सुरू करा",      "lang": "Marathi",   "code": "mr-IN", "back": "मुख्यपृष्ठ",    "top": "62%", "left": "48%", "delay": "1.0s", "rot": "4deg"},
-    {"word": "ਸ਼ੁਰੂ ਕਰੋ",    "lang": "Punjabi",   "code": "pa-IN", "back": "ਵਾਪਸ ਜਾਓ",     "top": "40%", "left": "82%", "delay": "1.7s", "rot": "-6deg"},
-    {"word": "ଆରମ୍ଭ କରନ୍ତୁ", "lang": "Odia",      "code": "od-IN", "back": "ମୂଳପୃଷ୍ଠା",   "top": "80%", "left": "35%", "delay": "0.6s", "rot": "3deg"},
-    {"word": "শুরু কৰক",      "lang": "Assamese",  "code": "as-IN", "back": "ঘূৰি যাওক",    "top": "50%", "left": "20%", "delay": "1.4s", "rot": "-4deg"},
-    {"word": "Click to Start", "lang": "English",  "code": "en-IN", "back": "Back Home",     "top": "82%", "left": "60%", "delay": "0.9s", "rot": "2deg"},
+    {
+        "word": "शुरू करें",     "lang": "Hindi",    "code": "hi-IN",
+        "back": "वापस जाएं",    "press": "बात करने के लिए दबाएं",
+        "top": "15%", "left": "12%", "delay": "0s",   "rot": "-4deg"
+    },
+    {
+        "word": "தொடங்கு",       "lang": "Tamil",    "code": "ta-IN",
+        "back": "முகப்பு",      "press": "பேச அழுத்தவும்",
+        "top": "22%", "left": "75%", "delay": "0.5s", "rot": "5deg"
+    },
+    {
+        "word": "ప్రారంభించు",    "lang": "Telugu",   "code": "te-IN",
+        "back": "హోమ్",         "press": "మాట్లాడటానికి నొక్కండి",
+        "top": "35%", "left": "8%",  "delay": "1.2s", "rot": "-3deg"
+    },
+    {
+        "word": "ಪ್ರಾರಂಭಿಸಿ",    "lang": "Kannada",  "code": "kn-IN",
+        "back": "ಮುಖಪುಟ",       "press": "ಮಾತನಾಡಲು ಒತ್ತಿರಿ",
+        "top": "70%", "left": "15%", "delay": "0.8s", "rot": "6deg"
+    },
+    {
+        "word": "শুরু করুন",     "lang": "Bengali",  "code": "bn-IN",
+        "back": "হোমে ফিরুন",   "press": "কথা বলতে চাপুন",
+        "top": "18%", "left": "45%", "delay": "1.5s", "rot": "-2deg"
+    },
+    {
+        "word": "સ્ટાર્ટ કરો",   "lang": "Gujarati", "code": "gu-IN",
+        "back": "પાછા જાઓ",     "press": "બોલવા માટે દબાવો",
+        "top": "75%", "left": "78%", "delay": "0.3s", "rot": "-5deg"
+    },
+    {
+        "word": "सुरू करा",      "lang": "Marathi",  "code": "mr-IN",
+        "back": "मुख्यपृष्ठ",   "press": "बोलण्यासाठी दाबा",
+        "top": "62%", "left": "48%", "delay": "1.0s", "rot": "4deg"
+    },
+    {
+        "word": "ਸ਼ੁਰੂ ਕਰੋ",    "lang": "Punjabi",  "code": "pa-IN",
+        "back": "ਵਾਪਸ ਜਾਓ",    "press": "ਗੱਲ ਕਰਨ ਲਈ ਦਬਾਓ",
+        "top": "40%", "left": "82%", "delay": "1.7s", "rot": "-6deg"
+    },
+    {
+        "word": "ଆରମ୍ଭ କରନ୍ତୁ", "lang": "Odia",     "code": "od-IN",
+        "back": "ମୂଳପୃଷ୍ଠା",   "press": "କଥା ହେବାକୁ ଦବାନ୍ତୁ",
+        "top": "80%", "left": "35%", "delay": "0.6s", "rot": "3deg"
+    },
+    {
+        "word": "শুরু কৰক",      "lang": "Assamese", "code": "as-IN",
+        "back": "ঘূৰি যাওক",    "press": "কথা পাতিবলৈ টিপক",
+        "top": "50%", "left": "20%", "delay": "1.4s", "rot": "-4deg"
+    },
+    {
+        "word": "Click to Start", "lang": "English", "code": "en-IN",
+        "back": "Back Home",     "press": "Press to Talk",
+        "top": "82%", "left": "60%", "delay": "0.9s", "rot": "2deg"
+    },
 ]
 
-LANG_CODE_MAP = {item["lang"]: item["code"] for item in LANGUAGES}
+LANG_CODE_MAP  = {item["lang"]: item["code"]  for item in LANGUAGES}
+LANG_PRESS_MAP = {item["lang"]: item["press"] for item in LANGUAGES}
+LANG_BACK_MAP  = {item["lang"]: item["back"]  for item in LANGUAGES}
+
+# Mutable session state — survives across Gradio handler calls
+_session = {"lang_code": "hi-IN", "back_label": "Back Home", "press_label": "Press to Talk"}
 
 # ---------------------------------------------------------------------------
-# 2. HELPER UTILITIES
+# HELPERS
 # ---------------------------------------------------------------------------
 def resolve_location(lat=21.1938, lon=81.2849):
-    """Converts coordinates to location string via GeoPy."""
-    location = geolocator.reverse(f"{lat}, {lon}")
-    address = location.raw.get('address', {})
-    place = (
-        address.get('village') or 
-        address.get('town') or 
-        address.get('city') or 
-        address.get('subdistrict') or 
-        "Local Area"
-    )
-    state = address.get('state', '')
-    return f"{place}, {state}".strip(", ")
+    try:
+        loc  = geolocator.reverse(f"{lat}, {lon}")
+        addr = loc.raw.get("address", {})
+        place = (addr.get("village") or addr.get("town") or
+                 addr.get("city")    or addr.get("subdistrict") or "Local Area")
+        return f"{place}, {addr.get('state', '')}".strip(", ")
+    except Exception:
+        return "Local Area, Chhattisgarh"
 
 
 def generate_audio_file(text, lang_code="hi-IN"):
-    """Generates audio file via Sarvam AI TTS for Gradio UI playback."""
-    response = sarvam_client.text_to_speech.convert(
-        model="bulbul:v3",
-        text=text,
-        target_language_code=lang_code if lang_code else "hi-IN",
-        speaker="shubh"
-    )
-    if hasattr(response, "audios") and response.audios:
-        raw_audio = base64.b64decode(response.audios[0])
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-        temp_file.write(raw_audio)
-        temp_file.close()
-        return temp_file.name
+    """Call Sarvam TTS, write to temp file, return filepath for gr.Audio."""
+    if not sarvam_client or not text:
+        return None
+    try:
+        response = sarvam_client.text_to_speech.convert(
+            model="bulbul:v3",
+            text=text,
+            target_language_code=lang_code or "hi-IN",
+            speaker="shubh"
+        )
+        if hasattr(response, "audios") and response.audios:
+            raw  = base64.b64decode(response.audios[0])
+            tmp  = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+            tmp.write(raw)
+            tmp.close()
+            return tmp.name
+    except Exception as e:
+        print(f"[TTS] Error: {e}")
     return None
 
 
-def parse_response_tags(reply):
-    """Extracts UI status tags generated by ask_gemma()."""
-    tag = "NORMAL"
-    clean_text = reply
+def parse_tags(reply):
+    tag, text = "NORMAL", reply
+    for t in ["[REQUEST_IMAGE]", "[EMERGENCY]", "[TRIAGE_COMPLETE]"]:
+        if t in reply:
+            tag  = t
+            text = reply.replace(t, "").strip()
+            break
+    return tag, text
 
-    if "[REQUEST_IMAGE]" in reply:
-        tag = "[REQUEST_IMAGE]"
-        clean_text = reply.replace("[REQUEST_IMAGE]", "").strip()
-    elif "[EMERGENCY]" in reply:
-        tag = "[EMERGENCY]"
-        clean_text = reply.replace("[EMERGENCY]", "").strip()
-    elif "[TRIAGE_COMPLETE]" in reply:
-        tag = "[TRIAGE_COMPLETE]"
-        clean_text = reply.replace("[TRIAGE_COMPLETE]", "").strip()
-
-    return tag, clean_text
 
 # ---------------------------------------------------------------------------
-# 3. HTML BUILDERS
+# HOME PAGE
 # ---------------------------------------------------------------------------
 def build_home_page():
-    scattered_buttons = ""
+    buttons_html = ""
     for item in LANGUAGES:
-        payload = f"{item['lang']}||{item['back']}"
-        scattered_buttons += f"""
-        <div class="scattered-tag" 
-             style="top: {item['top']}; left: {item['left']}; animation-delay: {item['delay']}; --rot: {item['rot']};" 
-             onclick="sendTrigger('{payload}')">
-            <span class="word">{item['word']}</span>
-            <small class="lang-label">{item['lang']}</small>
-        </div>
-        """
+        payload = f"{item['lang']}||{item['back']}||{item['press']}"
+        buttons_html += (
+            f'<div class="scattered-tag" '
+            f'style="top:{item["top"]};left:{item["left"]};'
+            f'animation-delay:{item["delay"]};--rot:{item["rot"]};" '
+            f'onclick="sendTrigger(\'{payload}\')">'
+            f'<span class="word">{item["word"]}</span>'
+            f'<small class="lang-label">{item["lang"]}</small>'
+            f'</div>'
+        )
 
     return f"""
-    <style>
-        .home-container {{
-            position: relative;
-            min-height: 85vh;
-            width: 100%;
-            background: linear-gradient(135deg, #023047, #219ebc, #8ecae6, #028090, #00b4d8);
-            background-size: 400% 400%;
-            animation: waterFlowWave 15s ease infinite;
-            border-radius: 20px;
-            color: white;
-            overflow: hidden;
-            font-family: system-ui, -apple-system, sans-serif;
-        }}
-        @keyframes waterFlowWave {{
-            0% {{ background-position: 0% 50%; }}
-            50% {{ background-position: 100% 50%; }}
-            100% {{ background-position: 0% 50%; }}
-        }}
-        .center-hero {{
-            position: absolute;
-            top: 48%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            z-index: 2;
-            pointer-events: none;
-        }}
-        .home-title {{
-            font-size: 3.5rem;
-            font-weight: 900;
-            margin-bottom: 0.2rem;
-            background: linear-gradient(to right, #ffffff, #caf0f8, #90e0ef);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            letter-spacing: -1px;
-            text-shadow: 0 4px 20px rgba(0, 119, 182, 0.4);
-        }}
-        .home-subtitle {{
-            font-size: 1.1rem;
-            opacity: 0.9;
-            color: #e0f2fe;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }}
-        .scattered-tag {{
-            position: absolute;
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(14px);
-            border: 1px solid rgba(255, 255, 255, 0.35);
-            padding: 12px 22px;
-            border-radius: 30px;
-            cursor: pointer;
-            z-index: 5;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            box-shadow: 0 8px 32px 0 rgba(0, 50, 80, 0.3);
-            animation: floatWater 5s infinite ease-in-out;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            transform: rotate(var(--rot, 0deg));
-        }}
-        .scattered-tag:hover {{
-            background: rgba(255, 255, 255, 0.35);
-            border-color: #ffffff;
-            box-shadow: 0 0 35px rgba(144, 224, 239, 0.8);
-            transform: scale(1.15) translateY(-6px) rotate(var(--rot, 0deg)) !important;
-        }}
-        .scattered-tag .word {{
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: #ffffff;
-        }}
-        .scattered-tag .lang-label {{
-            font-size: 0.75rem;
-            color: #e0f2fe;
-            margin-top: 2px;
-            font-weight: 500;
-        }}
-        @keyframes floatWater {{
-            0%, 100% {{ transform: translateY(0px) rotate(var(--rot, 0deg)); }}
-            50% {{ transform: translateY(-12px) rotate(var(--rot, 0deg)); }}
-        }}
-    </style>
+<style>
+  .home-container {{
+    position:relative; min-height:85vh; width:100%;
+    background:linear-gradient(135deg,#02060f 0%,#050d1f 25%,#060818 50%,#030b16 75%,#020810 100%);
+    background-size:400% 400%;
+    animation:bgShift 20s ease infinite;
+    border-radius:20px; color:white; overflow:hidden;
+    font-family:system-ui,-apple-system,sans-serif;
+  }}
+  @keyframes bgShift {{
+    0%{{background-position:0% 50%}} 50%{{background-position:100% 50%}} 100%{{background-position:0% 50%}}
+  }}
 
-    <div class="home-container">
-        <div class="center-hero">
-            <h1 class="home-title">Sampark Bhai</h1>
-            <p class="home-subtitle">Tap any regional button to start emergency triage assistant</p>
-        </div>
+  .home-blob1 {{
+    position:absolute; width:600px; height:600px; border-radius:50%;
+    background:radial-gradient(circle,rgba(109,40,217,.18) 0%,transparent 65%);
+    top:-180px; left:-150px; pointer-events:none;
+    animation:blobDrift1 16s ease-in-out infinite alternate;
+  }}
+  .home-blob2 {{
+    position:absolute; width:480px; height:480px; border-radius:50%;
+    background:radial-gradient(circle,rgba(6,182,212,.12) 0%,transparent 65%);
+    bottom:-120px; right:-100px; pointer-events:none;
+    animation:blobDrift2 19s ease-in-out infinite alternate;
+  }}
+  @keyframes blobDrift1 {{ to{{ transform:translate(60px,45px) scale(1.1); }} }}
+  @keyframes blobDrift2 {{ to{{ transform:translate(-50px,-40px) scale(1.08); }} }}
 
-        {scattered_buttons}
-    </div>
+  .center-hero {{
+    position:absolute; top:48%; left:50%;
+    transform:translate(-50%,-50%);
+    text-align:center; z-index:2; pointer-events:none;
+  }}
+  .home-title {{
+    font-size:3.5rem; font-weight:900; margin-bottom:.25rem;
+    background:linear-gradient(90deg,#a78bfa,#22d3ee,#60a5fa);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text; letter-spacing:-1px;
+  }}
+  .home-subtitle {{
+    font-size:1rem; color:rgba(186,230,253,.6); font-weight:300;
+  }}
+  .home-hint {{
+    margin-top:20px; font-size:.75rem; letter-spacing:.16em;
+    text-transform:uppercase; color:rgba(139,92,246,.5);
+    animation:hintBlink 2.8s ease-in-out infinite;
+  }}
+  @keyframes hintBlink {{ 0%,100%{{opacity:.3}} 50%{{opacity:.9}} }}
+
+  .scattered-tag {{
+    position:absolute;
+    background:rgba(109,40,217,.1);
+    backdrop-filter:blur(14px);
+    border:1px solid rgba(139,92,246,.3);
+    padding:12px 22px; border-radius:30px;
+    cursor:pointer; z-index:5;
+    display:flex; flex-direction:column; align-items:center;
+    box-shadow:0 8px 32px rgba(0,0,30,.5);
+    animation:floatTag 5s infinite ease-in-out;
+    transition:all .3s cubic-bezier(.175,.885,.32,1.275);
+    transform:rotate(var(--rot,0deg));
+  }}
+  .scattered-tag:hover {{
+    background:rgba(139,92,246,.28);
+    border-color:rgba(167,139,250,.8);
+    box-shadow:0 0 35px rgba(139,92,246,.55);
+    transform:scale(1.12) translateY(-6px) rotate(var(--rot,0deg));
+  }}
+  @keyframes floatTag {{
+    0%,100% {{ transform:translateY(0) rotate(var(--rot,0deg)); }}
+    50%      {{ transform:translateY(-12px) rotate(var(--rot,0deg)); }}
+  }}
+  .word      {{ font-size:1.1rem; font-weight:700; color:#f3e8ff; }}
+  .lang-label{{ font-size:.68rem; color:rgba(196,181,253,.55); margin-top:3px; }}
+</style>
+
+<div class="home-container">
+  <div class="home-blob1"></div>
+  <div class="home-blob2"></div>
+  <div class="center-hero">
+    <h1 class="home-title">Sampark Mitra</h1>
+    <p class="home-subtitle">AI-powered emergency assistant for rural India</p>
+    <p class="home-hint">Tap any word to begin</p>
+  </div>
+  {buttons_html}
+</div>"""
+
+
+# ---------------------------------------------------------------------------
+# ORB PAGE
+# ---------------------------------------------------------------------------
+def build_orb_page(tag="NORMAL", response_text="",
+                   back_label="Back Home", press_label="Press to Talk",
+                   mic_state="idle"):
     """
-
-
-def build_orb_page(tag="NORMAL", response_text="", back_label="Back Home"):
-    tag_color = "#38bdf8"
-    if tag == "[EMERGENCY]":
-        tag_color = "#ef4444"
-    elif tag == "[REQUEST_IMAGE]":
-        tag_color = "#f59e0b"
-    elif tag == "[TRIAGE_COMPLETE]":
-        tag_color = "#10b981"
+    mic_state: "idle" | "recording" | "processing"
+    The mic button label and style change based on state.
+    """
+    tag_color = {
+        "[EMERGENCY]":      "#ef4444",
+        "[REQUEST_IMAGE]":  "#f59e0b",
+        "[TRIAGE_COMPLETE]":"#10b981"
+    }.get(tag, "#a78bfa")
 
     status_card = ""
     if response_text:
+        clean = response_text.replace('"', '&quot;').replace('<', '&lt;').replace('>', '&gt;')
         status_card = f"""
-        <div style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 16px; padding: 1.2rem; margin-top: 1.5rem; width: 100%; max-width: 550px; color: white; backdrop-filter: blur(12px);">
-            <div style="font-weight: 700; color: {tag_color}; margin-bottom: 6px; font-size: 0.95rem;">STATUS: {tag}</div>
-            <div style="font-size: 1.05rem; line-height: 1.4;">{response_text}</div>
-        </div>
-        """
+        <div class="status-card">
+          <div class="status-tag-label" style="color:{tag_color}">
+            {tag.replace("[","").replace("]","")}
+          </div>
+          <div class="status-body">{clean}</div>
+        </div>"""
+
+    # Mic button appearance per state
+    if mic_state == "recording":
+        btn_label    = "Recording... tap to stop"
+        btn_style    = "mic-btn mic-btn-recording"
+        orb_anim     = "orb-speaking"
+        status_label = "Listening..."
+    elif mic_state == "processing":
+        btn_label    = "Processing..."
+        btn_style    = "mic-btn mic-btn-processing"
+        orb_anim     = "orb-speaking"
+        status_label = "Processing your voice..."
+    else:
+        btn_label    = press_label
+        btn_style    = "mic-btn mic-btn-idle"
+        orb_anim     = "orb-idle"
+        status_label = ""
+
+    status_label_html = (
+        f'<div class="orb-status-label">{status_label}</div>'
+        if status_label else ""
+    )
 
     return f"""
-    <style>
-        .orb-screen {{
-            min-height: 85vh;
-            background: linear-gradient(135deg, #023047, #219ebc, #8ecae6, #028090, #00b4d8);
-            background-size: 400% 400%;
-            animation: waterFlowWave 15s ease infinite;
-            color: white;
-            border-radius: 20px;
-            padding: 2rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-between;
-            font-family: system-ui, -apple-system, sans-serif;
-            position: relative;
-            overflow: hidden;
-        }}
-        .orb-header {{
-            width: 100%;
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            z-index: 10;
-        }}
-        .orb-container {{
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            margin: auto 0;
-            z-index: 5;
-        }}
-        .wavy-orb {{
-            width: 180px;
-            height: 180px;
-            background: radial-gradient(circle at 30% 30%, #38bdf8, #818cf8, #c084fc, #ec4899);
-            box-shadow: 0 0 60px rgba(56, 189, 248, 0.8), 0 0 100px rgba(192, 132, 252, 0.5);
-            animation: orbBreathe 3s ease-in-out infinite alternate, orbWave 8s linear infinite;
-        }}
-        @keyframes orbBreathe {{
-            0% {{
-                transform: scale(0.9);
-                box-shadow: 0 0 40px rgba(56, 189, 248, 0.6), 0 0 80px rgba(192, 132, 252, 0.4);
-            }}
-            100% {{
-                transform: scale(1.18);
-                box-shadow: 0 0 100px rgba(56, 189, 248, 0.95), 0 0 160px rgba(192, 132, 252, 0.8);
-            }}
-        }}
-        @keyframes orbWave {{
-            0% {{ border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%; }}
-            25% {{ border-radius: 65% 35% 60% 40% / 40% 60% 35% 65%; }}
-            50% {{ border-radius: 40% 60% 35% 65% / 60% 35% 65% 40%; }}
-            75% {{ border-radius: 55% 45% 70% 30% / 30% 70% 45% 55%; }}
-            100% {{ border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%; }}
-        }}
-    </style>
+<style>
+  @keyframes bgShift {{
+    0%{{background-position:0% 50%}} 50%{{background-position:100% 50%}} 100%{{background-position:0% 50%}}
+  }}
+  .orb-screen {{
+    min-height:85vh;
+    background:linear-gradient(135deg,#06000f,#0d0433,#001230,#00081e);
+    background-size:400% 400%;
+    animation:bgShift 18s ease infinite;
+    color:white; border-radius:20px; padding:2rem;
+    display:flex; flex-direction:column; align-items:center;
+    justify-content:space-between;
+    font-family:system-ui,-apple-system,sans-serif;
+    position:relative; overflow:hidden;
+  }}
+  .orb-header {{
+    width:100%; display:flex;
+    justify-content:space-between; align-items:center; z-index:10;
+  }}
+  .orb-logo {{
+    font-size:1.05rem; font-weight:700;
+    background:linear-gradient(90deg,#a78bfa,#22d3ee);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text;
+  }}
+  .back-btn {{
+    background:rgba(109,40,217,.15); border:1px solid rgba(139,92,246,.35);
+    color:rgba(196,181,253,.85); padding:9px 20px; border-radius:20px;
+    cursor:pointer; font-weight:600; font-size:.88rem;
+    font-family:system-ui,-apple-system,sans-serif;
+    transition:all .2s;
+  }}
+  .back-btn:hover {{
+    background:rgba(139,92,246,.3); color:#f3e8ff;
+    box-shadow:0 0 18px rgba(139,92,246,.4);
+  }}
 
-    <div class="orb-screen">
-        <div class="orb-header">
-            <button onclick="sendTrigger('__HOME__')" style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 10px 22px; border-radius: 20px; cursor: pointer; backdrop-filter: blur(8px); font-weight: 600; font-size: 0.95rem;">{back_label}</button>
-        </div>
+  .orb-body {{
+    display:flex; flex-direction:column; align-items:center;
+    justify-content:center; flex:1; z-index:5; gap:24px;
+    padding:20px 0;
+  }}
 
-        <div class="orb-container">
-            <div class="wavy-orb"></div>
-            {status_card}
-        </div>
+  /* ORB */
+  .wavy-orb {{
+    width:190px; height:190px;
+    background:radial-gradient(circle at 34% 32%,
+      #ddd6fe 0%,#7c3aed 25%,#1d4ed8 55%,#0891b2 78%,#0e7490 100%);
+    box-shadow:0 0 60px rgba(124,58,237,.65),0 0 120px rgba(6,182,212,.25),
+               inset 0 0 40px rgba(0,0,0,.25);
+    position:relative;
+  }}
+  .wavy-orb::before {{
+    content:''; position:absolute; top:13%; left:17%;
+    width:30%; height:20%; border-radius:50%;
+    background:radial-gradient(circle,rgba(255,255,255,.38) 0%,transparent 70%);
+  }}
 
-        <div></div>
-    </div>
-    """
+  .orb-idle {{
+    animation:orbIdle 5s ease-in-out infinite;
+  }}
+  @keyframes orbIdle {{
+    0%  {{border-radius:50%;transform:translate(0,0) scale(1);}}
+    14% {{border-radius:54% 46% 52% 48%/48% 52% 48% 52%;transform:translate(7px,-9px) scale(1.016);}}
+    28% {{border-radius:47% 53% 45% 55%/53% 47% 55% 45%;transform:translate(-6px,5px) scale(.987);}}
+    42% {{border-radius:53% 47% 55% 45%/45% 55% 47% 53%;transform:translate(9px,7px) scale(1.011);}}
+    57% {{border-radius:45% 55% 50% 50%/55% 45% 52% 48%;transform:translate(-8px,-6px) scale(.993);}}
+    71% {{border-radius:52% 48% 48% 52%/50% 50% 53% 47%;transform:translate(5px,10px) scale(1.008);}}
+    85% {{border-radius:49% 51% 53% 47%/47% 53% 49% 51%;transform:translate(-4px,-3px) scale(.996);}}
+    100%{{border-radius:50%;transform:translate(0,0) scale(1);}}
+  }}
+
+  .orb-speaking {{
+    animation:orbSpeak .5s ease-in-out infinite;
+    box-shadow:0 0 80px rgba(124,58,237,.85),0 0 150px rgba(6,182,212,.4),
+               inset 0 0 40px rgba(0,0,0,.2) !important;
+  }}
+  @keyframes orbSpeak {{
+    0%  {{border-radius:50%; transform:scale(1);}}
+    25% {{border-radius:48% 52% 50% 50%/52% 48% 50% 50%; transform:scale(.90);}}
+    50% {{border-radius:52% 48% 48% 52%/48% 52% 52% 48%; transform:scale(1.09);}}
+    75% {{border-radius:50% 50% 52% 48%/50% 50% 48% 52%; transform:scale(.93);}}
+    100%{{border-radius:50%; transform:scale(1);}}
+  }}
+
+  .orb-status-label {{
+    font-size:.8rem; letter-spacing:.12em; text-transform:uppercase;
+    color:rgba(34,211,238,.8);
+    animation:statusBlink 1s ease-in-out infinite;
+  }}
+  @keyframes statusBlink {{ 0%,100%{{opacity:.5}} 50%{{opacity:1}} }}
+
+  /* MIC BUTTON */
+  .mic-btn {{
+    padding:16px 40px; border-radius:100px;
+    font-size:1rem; font-weight:600; letter-spacing:.03em;
+    font-family:system-ui,-apple-system,sans-serif;
+    cursor:pointer; border:none; transition:all .25s ease;
+    min-width:220px; text-align:center;
+  }}
+  .mic-btn-idle {{
+    background:linear-gradient(135deg,#7c3aed,#0891b2);
+    color:white;
+    box-shadow:0 4px 30px rgba(124,58,237,.5);
+  }}
+  .mic-btn-idle:hover {{
+    transform:translateY(-3px);
+    box-shadow:0 8px 40px rgba(124,58,237,.7);
+  }}
+  .mic-btn-recording {{
+    background:linear-gradient(135deg,#dc2626,#b91c1c);
+    color:white;
+    box-shadow:0 4px 30px rgba(220,38,38,.6);
+    animation:recordPulse 1.2s ease-in-out infinite;
+  }}
+  @keyframes recordPulse {{
+    0%,100%{{box-shadow:0 4px 30px rgba(220,38,38,.5);}}
+    50%    {{box-shadow:0 4px 50px rgba(220,38,38,.9);}}
+  }}
+  .mic-btn-processing {{
+    background:rgba(109,40,217,.25);
+    border:1px solid rgba(139,92,246,.4) !important;
+    color:rgba(196,181,253,.6);
+    cursor:not-allowed;
+  }}
+
+  /* STATUS CARD */
+  .status-card {{
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.15);
+    border-radius:16px; padding:1.2rem; width:100%; max-width:520px;
+    backdrop-filter:blur(12px); text-align:center;
+  }}
+  .status-tag-label {{
+    font-weight:700; font-size:.85rem; margin-bottom:8px;
+    text-transform:uppercase; letter-spacing:.08em;
+  }}
+  .status-body {{
+    font-size:1rem; line-height:1.55; color:rgba(226,232,240,.9);
+  }}
+
+  /* EMERGENCY STRIP */
+  .estrip {{
+    width:100%; padding:12px 0 0; display:flex; justify-content:center; gap:28px;
+    border-top:1px solid rgba(139,92,246,.15);
+  }}
+  .enum {{ font-size:.72rem; color:rgba(186,230,253,.4); letter-spacing:.06em; }}
+  .enum strong {{ color:rgba(186,230,253,.75); }}
+</style>
+
+<div class="orb-screen">
+  <div class="orb-header">
+    <div class="orb-logo">Sampark Mitra</div>
+    <button class="back-btn" onclick="sendTrigger('__HOME__')">{back_label}</button>
+  </div>
+
+  <div class="orb-body">
+    <div class="wavy-orb {orb_anim}"></div>
+    {status_label_html}
+    <button class="{btn_style}" id="mic-toggle-btn"
+            onclick="handleMicClick()">
+      {btn_label}
+    </button>
+    {status_card}
+  </div>
+
+  <div class="estrip">
+    <span class="enum"><strong>112</strong> Emergency</span>
+    <span class="enum"><strong>108</strong> Ambulance</span>
+    <span class="enum"><strong>101</strong> Fire</span>
+    <span class="enum"><strong>100</strong> Police</span>
+  </div>
+</div>"""
 
 
+# ---------------------------------------------------------------------------
+# JAVASCRIPT
+# ---------------------------------------------------------------------------
 GLOBAL_JS = """
+// ----- Gradio hidden-input bridge -----
 function sendTrigger(val) {
     const container = document.getElementById('router_input');
-    const input = container ? (container.querySelector('textarea') || container.querySelector('input')) : null;
+    const input = container
+        ? (container.querySelector('textarea') || container.querySelector('input'))
+        : null;
     if (input) {
-        const nativeSetter = Object.getOwnPropertyDescriptor(
-            window.HTMLTextAreaElement.prototype, 'value'
-        ) || Object.getOwnPropertyDescriptor(
-            window.HTMLInputElement.prototype, 'value'
-        );
-        if (nativeSetter && nativeSetter.set) {
-            nativeSetter.set.call(input, val);
-        } else {
-            input.value = val;
-        }
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
+        const proto = Object.getPrototypeOf(input);
+        const desc  = Object.getOwnPropertyDescriptor(proto, 'value');
+        if (desc && desc.set) desc.set.call(input, val);
+        else input.value = val;
+        input.dispatchEvent(new Event('input',  {bubbles:true}));
+        input.dispatchEvent(new Event('change', {bubbles:true}));
     }
-    
     const btn = document.querySelector('#hidden_trigger_btn button, #hidden_trigger_btn');
-    if (btn) {
-        btn.click();
+    if (btn) btn.click();
+}
+
+// ----- Mic recording state machine -----
+var _mediaRecorder = null;
+var _audioChunks   = [];
+var _isRecording   = false;
+
+function handleMicClick() {
+    if (_isRecording) {
+        stopRecording();
+    } else {
+        startRecording();
     }
+}
+
+function startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Microphone access is not supported by this browser.');
+        return;
+    }
+    navigator.mediaDevices.getUserMedia({audio: true})
+        .then(function(stream) {
+            _audioChunks   = [];
+            _isRecording   = true;
+            _mediaRecorder = new MediaRecorder(stream);
+
+            _mediaRecorder.ondataavailable = function(e) {
+                if (e.data && e.data.size > 0) _audioChunks.push(e.data);
+            };
+
+            _mediaRecorder.onstop = function() {
+                _isRecording = false;
+                stream.getTracks().forEach(function(t) { t.stop(); });
+                var blob = new Blob(_audioChunks, {type: 'audio/wav'});
+                sendAudioToGradio(blob);
+            };
+
+            _mediaRecorder.start();
+
+            // Update button appearance immediately
+            var btn = document.getElementById('mic-toggle-btn');
+            if (btn) {
+                btn.textContent = 'Recording... tap to stop';
+                btn.className   = 'mic-btn mic-btn-recording';
+            }
+        })
+        .catch(function(err) {
+            alert('Could not access microphone: ' + err.message);
+        });
+}
+
+function stopRecording() {
+    if (_mediaRecorder && _isRecording) {
+        _isRecording = false;
+        _mediaRecorder.stop();
+        // Show processing state
+        var btn = document.getElementById('mic-toggle-btn');
+        if (btn) {
+            btn.textContent = 'Processing...';
+            btn.className   = 'mic-btn mic-btn-processing';
+            btn.disabled    = true;
+        }
+    }
+}
+
+function sendAudioToGradio(blob) {
+    // Convert blob to base64 and pipe to the hidden audio input component
+    var reader = new FileReader();
+    reader.onloadend = function() {
+        var base64Audio = reader.result;
+        // Write to hidden audio_input_hidden textbox so Python can pick it up
+        var container = document.getElementById('audio_b64_input');
+        var input     = container
+            ? (container.querySelector('textarea') || container.querySelector('input'))
+            : null;
+        if (input) {
+            var proto = Object.getPrototypeOf(input);
+            var desc  = Object.getOwnPropertyDescriptor(proto, 'value');
+            if (desc && desc.set) desc.set.call(input, base64Audio);
+            else input.value = base64Audio;
+            input.dispatchEvent(new Event('input',  {bubbles:true}));
+            input.dispatchEvent(new Event('change', {bubbles:true}));
+        }
+        // Trigger the audio pipeline button
+        var pipeBtn = document.querySelector('#audio_submit_btn button, #audio_submit_btn');
+        if (pipeBtn) pipeBtn.click();
+    };
+    reader.readAsDataURL(blob);
 }
 """
 
+
 # ---------------------------------------------------------------------------
-# 4. ROUTER HANDLER
+# HANDLERS
 # ---------------------------------------------------------------------------
 def handle_route(trigger):
+    """Called when a language word is clicked OR back button pressed."""
+    global _session
+
     if trigger == "__HOME__":
-        return build_home_page(), None
+        return build_home_page(), gr.update(visible=False), None
 
     if "||" in trigger:
-        parts = trigger.split("||")
-        lang_name = parts[0]
-        back_label = parts[1]
-        lang_code = LANG_CODE_MAP.get(lang_name, "hi-IN")
-        
-        location_str = resolve_location()
-        
-        # 1. Execute live inference with Gemma
-        user_prompt = f"New emergency triage request started in language '{lang_name}' from location: {location_str}"
-        raw_reply = ask_gemma(user_prompt)
-        
-        tag, clean_text = parse_response_tags(raw_reply)
-        
-        # 2. Convert response to audio for Gradio browser stream
-        audio_file = generate_audio_file(clean_text, lang_code=lang_code)
-        
-        # 3. Play via local audio device output
-        try:
-            sarvam_local_speech(clean_text, lang_code)
-        except Exception as e:
-            print(f"Local speech output warning: {e}")
+        parts       = trigger.split("||")
+        lang_name   = parts[0]
+        back_label  = parts[1] if len(parts) > 1 else "Back Home"
+        press_label = parts[2] if len(parts) > 2 else "Press to Talk"
+        lang_code   = LANG_CODE_MAP.get(lang_name, "hi-IN")
 
-        return build_orb_page(tag=tag, response_text=clean_text, back_label=back_label), audio_file
+        _session["lang_code"]   = lang_code
+        _session["back_label"]  = back_label
+        _session["press_label"] = press_label
 
-    return build_orb_page(), None
+        orb = build_orb_page(
+            back_label=back_label,
+            press_label=press_label,
+            mic_state="idle"
+        )
+        return orb, gr.update(visible=True), None
+
+    return build_home_page(), gr.update(visible=False), None
+
+
+def handle_audio_b64(audio_b64: str):
+    """
+    Receives base64-encoded audio blob from the browser JS,
+    saves to a temp WAV file, then runs the full pipeline:
+      transcribe_file() -> ask_gemma() -> generate_audio_file()
+    """
+    global _session
+
+    lang_code   = _session.get("lang_code",   "hi-IN")
+    back_label  = _session.get("back_label",  "Back Home")
+    press_label = _session.get("press_label", "Press to Talk")
+
+    def error_page(msg):
+        return (
+            build_orb_page(
+                response_text=msg,
+                back_label=back_label,
+                press_label=press_label,
+                mic_state="idle"
+            ),
+            None
+        )
+
+    if not audio_b64 or len(audio_b64) < 100:
+        return error_page("No audio received. Please try again.")
+
+    # Strip data URI header if present (data:audio/wav;base64,...)
+    if "," in audio_b64:
+        audio_b64 = audio_b64.split(",", 1)[1]
+
+    try:
+        raw_bytes = base64.b64decode(audio_b64)
+    except Exception as e:
+        print(f"[Audio] Base64 decode error: {e}")
+        return error_page("Audio encoding error. Please try again.")
+
+    # Write to temp file
+    try:
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+        tmp.write(raw_bytes)
+        tmp.close()
+        filepath = tmp.name
+    except Exception as e:
+        print(f"[Audio] File write error: {e}")
+        return error_page("Could not save audio. Please try again.")
+
+    # STT
+    print(f"[Pipeline] Running STT on {filepath}")
+    transcript, detected_lang = transcribe_file(filepath)
+
+    if not transcript:
+        return error_page(
+            "Could not understand the audio. Please speak clearly and try again."
+        )
+
+    # Use detected language from Sarvam if available
+    if detected_lang:
+        lang_code = detected_lang
+        _session["lang_code"] = lang_code
+
+    print(f"[Pipeline] Transcript={transcript!r}  Lang={lang_code!r}")
+
+    # Gemma
+    location_str = resolve_location()
+    full_prompt  = f"{transcript}\n[Location: {location_str}]"
+    print("[Pipeline] Calling Gemma...")
+    raw_reply = ask_gemma(full_prompt)
+    tag, clean = parse_tags(raw_reply)
+    print(f"[Pipeline] Gemma tag={tag!r}: {clean[:80]!r}")
+
+    # TTS
+    print("[Pipeline] Generating TTS...")
+    audio_out = generate_audio_file(clean, lang_code=lang_code)
+
+    orb = build_orb_page(
+        tag=tag,
+        response_text=clean,
+        back_label=back_label,
+        press_label=press_label,
+        mic_state="idle"
+    )
+    return orb, audio_out
+
 
 # ---------------------------------------------------------------------------
-# 5. GRADIO LAYOUT
+# GRADIO LAYOUT
 # ---------------------------------------------------------------------------
-custom_css = """
-footer {display: none !important;}
-#router_input, #hidden_trigger_btn {
-    position: fixed !important;
-    left: -9999px !important;
-    top: -9999px !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-    height: 0 !important;
-    width: 0 !important;
-    overflow: hidden !important;
+CSS = """
+footer {display:none !important;}
+#router_input, #hidden_trigger_btn, #audio_b64_input, #audio_submit_btn {
+    position:fixed !important; left:-9999px !important; top:-9999px !important;
+    opacity:0 !important; pointer-events:none !important;
+    height:0 !important; width:0 !important; overflow:hidden !important;
 }
 """
 
-with gr.Blocks(title="Sampark Bhai", css=custom_css, js=GLOBAL_JS) as demo:
-    
-    router_input = gr.Textbox(elem_id="router_input", visible=True)
-    hidden_trigger_btn = gr.Button(elem_id="hidden_trigger_btn", visible=True)
-    
-    display_page = gr.HTML(value=build_home_page())
-    audio_output = gr.Audio(label="Output Voice", autoplay=True, visible=False)
+with gr.Blocks(title="Sampark Mitra", css=CSS, js=GLOBAL_JS) as demo:
 
+    # --- Hidden routing components ---
+    router_input       = gr.Textbox(elem_id="router_input",       visible=True)
+    hidden_trigger_btn = gr.Button("go", elem_id="hidden_trigger_btn", visible=True)
+
+    # --- Hidden audio pipeline components ---
+    # JS writes base64 audio here, then clicks audio_submit_btn
+    audio_b64_input  = gr.Textbox(elem_id="audio_b64_input",  visible=True)
+    audio_submit_btn = gr.Button("submit", elem_id="audio_submit_btn", visible=True)
+
+    # --- Visible components ---
+    display_page = gr.HTML(value=build_home_page())
+    audio_output = gr.Audio(
+        label="Sampark Mitra Response",
+        autoplay=True,
+        visible=False
+    )
+
+    # Language word clicked -> show orb page
     hidden_trigger_btn.click(
         fn=handle_route,
         inputs=[router_input],
+        outputs=[display_page, audio_output, audio_output]
+    )
+
+    # Audio blob received from browser JS -> run full pipeline
+    audio_submit_btn.click(
+        fn=handle_audio_b64,
+        inputs=[audio_b64_input],
         outputs=[display_page, audio_output]
     )
 
