@@ -4,7 +4,7 @@ Sampark Mitra - Rural Emergency Triage Hub UI
 Pipeline:
   1. Home page: click language word
   2. Orb page: shows "press to talk" in chosen language
-  3. User records audio or uploads photo when asked
+  3. User records via mic or uploads a photo if requested
   4. On stop/upload: transcribe_file() / image -> ask_gemma() -> generate_audio_file() -> playback
 """
 
@@ -102,7 +102,7 @@ LANG_PRESS_MAP  = {item["lang"]: item["press"]  for item in LANGUAGES}
 LANG_BACK_MAP   = {item["lang"]: item["back"]   for item in LANGUAGES}
 LANG_UPLOAD_MAP = {item["lang"]: item["upload"] for item in LANGUAGES}
 
-# Session state across Gradio calls
+# Mutable session state
 _session = {
     "lang_code": "hi-IN",
     "back_label": "Back Home",
@@ -125,6 +125,10 @@ def resolve_location(lat=21.1938, lon=81.2849):
 
 
 def generate_audio_file(text, lang_code="hi-IN"):
+    """
+    Produces a WAV file via Sarvam API client for gr.Audio autoplay in browser.
+    Single TTS playback via browser player.
+    """
     if not text:
         return None
 
@@ -137,8 +141,8 @@ def generate_audio_file(text, lang_code="hi-IN"):
                 speaker="shubh"
             )
             if hasattr(response, "audios") and response.audios:
-                raw = base64.b64decode(response.audios[0])
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+                raw  = base64.b64decode(response.audios[0])
+                tmp  = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
                 tmp.write(raw)
                 tmp.close()
                 return tmp.name
@@ -159,7 +163,7 @@ def parse_tags(reply):
 
 
 # ---------------------------------------------------------------------------
-# PAGES
+# HOME PAGE
 # ---------------------------------------------------------------------------
 def build_home_page():
     buttons_html = ""
@@ -178,11 +182,11 @@ def build_home_page():
     return f"""
 <style>
   .home-container {{
-    position:relative; min-height:85vh; width:100%;
+    position:relative; min-height:100vh; width:100%;
     background:linear-gradient(135deg,#02060f 0%,#050d1f 25%,#060818 50%,#030b16 75%,#020810 100%);
     background-size:400% 400%;
     animation:bgShift 20s ease infinite;
-    border-radius:20px; color:white; overflow:hidden;
+    color:white; overflow:hidden;
     font-family:system-ui,-apple-system,sans-serif;
   }}
   @keyframes bgShift {{
@@ -264,6 +268,9 @@ def build_home_page():
 </div>"""
 
 
+# ---------------------------------------------------------------------------
+# ORB PAGE
+# ---------------------------------------------------------------------------
 def build_orb_page(tag="NORMAL", response_text="",
                    back_label="Back Home", press_label="Press to Talk",
                    upload_label="Upload Photo", mic_state="idle"):
@@ -284,7 +291,7 @@ def build_orb_page(tag="NORMAL", response_text="",
           <div class="status-body">{clean}</div>
         </div>"""
 
-    # Show localized image upload button if Gemma asks for image
+    # Image Upload Button displayed when model requests image
     upload_btn_html = ""
     if tag == "[REQUEST_IMAGE]":
         upload_btn_html = f"""
@@ -321,13 +328,13 @@ def build_orb_page(tag="NORMAL", response_text="",
     0%{{background-position:0% 50%}} 50%{{background-position:100% 50%}} 100%{{background-position:0% 50%}}
   }}
   .orb-screen {{
-    min-height:85vh;
+    min-height:100vh; width:100%;
     background:linear-gradient(135deg,#06000f,#0d0433,#001230,#00081e);
     background-size:400% 400%;
     animation:bgShift 18s ease infinite;
-    color:white; border-radius:20px; padding:2rem;
+    color:white; padding:2rem;
     display:flex; flex-direction:column; align-items:center;
-    justify-content:space-between;
+    justify-content:space-between; box-sizing:border-box;
     font-family:system-ui,-apple-system,sans-serif;
     position:relative; overflow:hidden;
   }}
@@ -694,24 +701,29 @@ def handle_audio_b64(audio_b64: str):
         tmp.close()
         filepath = tmp.name
     except Exception as e:
-        print(f"[Audio] Error: {e}")
-        return error_page("Audio saving error. Please try again.")
+        print(f"[Audio] File write error: {e}")
+        return error_page("Could not save audio. Please try again.")
 
     print(f"[Pipeline] Running STT on {filepath}")
     transcript, detected_lang = transcribe(filepath)
 
     if not transcript:
-        return error_page("Could not understand audio. Please speak clearly.")
+        return error_page(
+            "Could not understand the audio. Please speak clearly and try again."
+        )
 
     if detected_lang:
         lang_code = detected_lang
         _session["lang_code"] = lang_code
+
+    print(f"[Pipeline] Transcript={transcript!r}  Lang={lang_code!r}")
 
     location_str = resolve_location()
     full_prompt  = f"{transcript}\n[Location: {location_str}]"
     print("[Pipeline] Calling Gemma...")
     raw_reply = ask_gemma(full_prompt)
     tag, clean = parse_tags(raw_reply)
+    print(f"[Pipeline] Gemma tag={tag!r}: {clean[:80]!r}")
 
     print("[Pipeline] Generating TTS...")
     audio_out = generate_audio_file(clean, lang_code=lang_code)
@@ -762,7 +774,7 @@ def handle_image_b64(image_b64: str):
         ), None
 
     location_str = resolve_location()
-    full_prompt  = f"Here is the requested photo of the symptom.\n[Location: {location_str}]"
+    full_prompt  = f"Here is the photo of the symptom.\n[Location: {location_str}]"
     print(f"[Pipeline] Passing image ({img_path}) to Gemma...")
     raw_reply = ask_gemma(full_prompt, image_path=img_path)
     tag, clean = parse_tags(raw_reply)
@@ -781,10 +793,23 @@ def handle_image_b64(image_b64: str):
 
 
 # ---------------------------------------------------------------------------
-# GRADIO LAYOUT
+# GRADIO LAYOUT & FULL-PAGE CSS
 # ---------------------------------------------------------------------------
 CSS = """
+/* Reset body and outer containers to remove black margins */
+html, body, .gradio-container, .main, .contain, #component-0 {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100vh !important;
+    background-color: #02060f !important;
+    border: none !important;
+    overflow-x: hidden;
+}
+
 footer {display:none !important;}
+
 #router_input, #hidden_trigger_btn, #audio_b64_input, #audio_submit_btn, #image_b64_input, #image_submit_btn {
     position:fixed !important; left:-9999px !important; top:-9999px !important;
     opacity:0 !important; pointer-events:none !important;
