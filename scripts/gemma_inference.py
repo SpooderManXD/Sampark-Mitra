@@ -1,5 +1,5 @@
 import os
-from PIL import Image
+import mimetypes
 from google import genai
 from google.genai import types
 
@@ -57,15 +57,27 @@ def ask_gemma(user_message: str, image_path: str = None) -> str:
     """
     user_parts = []
 
-    # Attach image if provided
+    # If an image is provided, read bytes and create a valid SDK Part object
     if image_path and os.path.exists(image_path):
         try:
-            img = Image.open(image_path)
-            user_parts.append(img)
-            print(f"[Gemma] Attached image from path: {image_path}")
+            mime_type, _ = mimetypes.guess_type(image_path)
+            if not mime_type:
+                mime_type = "image/jpeg"
+
+            with open(image_path, "rb") as f:
+                img_bytes = f.read()
+
+            # Create proper Part object with inline image bytes
+            image_part = types.Part.from_bytes(
+                data=img_bytes,
+                mime_type=mime_type
+            )
+            user_parts.append(image_part)
+            print(f"[Gemma] Successfully attached image from path: {image_path}")
         except Exception as e:
             print(f"[Gemma] Error loading image: {e}")
 
+    # Append text part
     user_parts.append({"text": user_message})
 
     history.append({
@@ -87,7 +99,7 @@ def ask_gemma(user_message: str, image_path: str = None) -> str:
         reply = response.text
     except Exception as e:
         print(f"\nError during Gemma API call: {e}")
-        # Rollback history so state remains clean
+        # Rollback history on error so state remains clean
         history.pop()
         return "क्षमा करें, एक तकनीकी समस्या आ गई है।"
 
