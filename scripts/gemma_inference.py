@@ -41,6 +41,10 @@ or
 5. Keep replies under 80 words.
 
 6. Reply in the same language as the user.
+
+7. Must complete diagnose in 10 questions.
+
+8. At the end Ask the location of the person and suggest a nearby clinic or hospital they can go to.
 """
 
 history = []
@@ -59,6 +63,7 @@ def ask_gemma(user_message: str):
             contents=history,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
+                tools=[types.Tool(google_search=types.GoogleSearch())]
                 temperature=0.2,
             )
         )
