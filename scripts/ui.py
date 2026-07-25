@@ -11,9 +11,7 @@ Pipeline:
 import os
 import base64
 import tempfile
-import io
 import gradio as gr
-from pydub import AudioSegment
 from geopy.geocoders import Nominatim
 from sarvamai import SarvamAI
 
@@ -670,131 +668,6 @@ function sendImageToGradio(inputElem) {
     };
     reader.readAsDataURL(file);
 }
-
-// ── Sound-reactive orb via Web Audio API ──
-// Runs on every page render; polls for the orb + audio elements.
-var _orbAudioCtx  = null;
-var _orbAnalyser  = null;
-var _orbRafId     = null;
-var _orbAudioEl   = null;
-var _orbAttached  = false;
-
-function _orbAnimate() {
-    if (!_orbAnalyser) return;
-    var orb = document.getElementById('main-orb');
-    if (!orb) { _orbRafId = null; return; }
-
-    var data = new Uint8Array(_orbAnalyser.frequencyBinCount);
-    _orbAnalyser.getByteFrequencyData(data);
-    var sum = 0;
-    for (var i = 0; i < data.length; i++) sum += data[i];
-    var norm = (sum / data.length) / 255; // 0–1
-
-    var t     = Date.now() / 1000;
-    var scale = 1 + norm * 0.62 - (1 - norm) * 0.10;
-    var r1    = 50 + norm * 26;
-    var r2    = 50 - norm * 24;
-    var r3    = 50 + norm * 20 * Math.sin(t * 3.1);
-    var r4    = 50 - norm * 22 * Math.cos(t * 2.7);
-    var tx    = norm * 24 * Math.sin(t * 4.5);
-    var ty    = norm * 20 * Math.cos(t * 3.8);
-    var g1    = Math.round(60  + norm * 130);
-    var g2    = Math.round(120 + norm * 210);
-    var a1    = (0.65 + norm * 0.35).toFixed(2);
-    var a2    = (0.25 + norm * 0.45).toFixed(2);
-
-    orb.style.transform    = 'translate('+tx+'px,'+ty+'px) scale('+scale+')';
-    orb.style.borderRadius = r1+'% '+r2+'% '+r3+'% '+r4+'% / '+r2+'% '+r1+'% '+r4+'% '+r3+'%';
-    orb.style.boxShadow    = '0 0 '+g1+'px rgba(124,58,237,'+a1+'),0 0 '+g2+'px rgba(6,182,212,'+a2+'),inset 0 0 40px rgba(0,0,0,.2)';
-
-    _orbRafId = requestAnimationFrame(_orbAnimate);
-}
-
-function _orbStopAnimate() {
-    if (_orbRafId) { cancelAnimationFrame(_orbRafId); _orbRafId = null; }
-    var orb = document.getElementById('main-orb');
-    if (orb) {
-        orb.style.transform    = '';
-        orb.style.borderRadius = '';
-        orb.style.boxShadow    = '';
-    }
-}
-
-function _orbInitAnalyser(audioEl) {
-    try {
-        if (!_orbAudioCtx) {
-            _orbAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (_orbAudioCtx.state === 'suspended') _orbAudioCtx.resume();
-        var src = _orbAudioCtx.createMediaElementSource(audioEl);
-        _orbAnalyser = _orbAudioCtx.createAnalyser();
-        _orbAnalyser.fftSize = 64;
-        src.connect(_orbAnalyser);
-        src.connect(_orbAudioCtx.destination);
-        _orbAttached = true;
-    } catch(e) {
-        console.warn('[Orb] AudioContext error:', e);
-    }
-}
-
-function _orbTryAttach() {
-    // Look for a fresh audio element (Gradio replaces the DOM on each update)
-    var audioEl = document.querySelector('#audio_output audio, audio[src]');
-    if (!audioEl || audioEl === _orbAudioEl) {
-        setTimeout(_orbTryAttach, 600);
-        return;
-    }
-    _orbAudioEl  = audioEl;
-    _orbAttached = false;
-    _orbAnalyser = null;
-
-    audioEl.addEventListener('play', function() {
-        if (!_orbAttached) _orbInitAnalyser(audioEl);
-        if (_orbAnalyser) _orbAnimate();
-    });
-    audioEl.addEventListener('pause', _orbStopAnimate);
-    audioEl.addEventListener('ended', _orbStopAnimate);
-
-    if (!audioEl.paused && audioEl.currentTime > 0) {
-        if (!_orbAttached) _orbInitAnalyser(audioEl);
-        if (_orbAnalyser) _orbAnimate();
-    }
-    // Keep polling so we pick up audio elements injected after page-nav
-    setTimeout(_orbTryAttach, 1200);
-}
-
-// Start polling once DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', _orbTryAttach);
-} else {
-    _orbTryAttach();
-}
-
-// Home-page mobile layout helper (re-runs after every Gradio HTML swap)
-function _applyHomeLayout() {
-    var isMobile = window.innerWidth <= 600;
-    var desktop  = document.querySelectorAll('.home-container > .scattered-tag');
-    var grid     = document.getElementById('lang-grid-mobile');
-    if (!grid) return;
-    if (isMobile) {
-        desktop.forEach(function(el) { el.style.display = 'none'; });
-        grid.style.display = 'grid';
-    } else {
-        desktop.forEach(function(el) { el.style.display = ''; });
-        grid.style.display = 'none';
-    }
-}
-window.addEventListener('resize', _applyHomeLayout);
-// MutationObserver so it fires whenever Gradio swaps the HTML component
-(function() {
-    var mo = new MutationObserver(function() { _applyHomeLayout(); });
-    function _startObs() {
-        var target = document.querySelector('.gradio-container') || document.body;
-        mo.observe(target, { childList: true, subtree: true });
-    }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _startObs);
-    else _startObs();
-})();
 """
 
 
@@ -869,17 +742,12 @@ def handle_audio_b64(audio_b64: str):
 
     try:
         raw_bytes = base64.b64decode(audio_b64)
-        
-        # --- FIX: Convert WebM bytes directly to WAV using Pydub ---
-        audio_segment = AudioSegment.from_file(io.BytesIO(raw_bytes))
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-        audio_segment.export(tmp.name, format="wav")
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".webm")
+        tmp.write(raw_bytes)
         tmp.close()
         filepath = tmp.name
-        # -----------------------------------------------------------
-        
     except Exception as e:
-        print(f"[Audio] File conversion error: {e}")
+        print(f"[Audio] File write error: {e}")
         return error_page("Could not save audio. Please try again.")
 
     print(f"[Pipeline] Running STT on {filepath}")
@@ -1039,8 +907,7 @@ footer {display:none !important;}
 }
 """
 
-# --- FIX: Gradio 6.0 CSS/JS moved to launch() ---
-with gr.Blocks(title="Sampark Mitra") as demo:
+with gr.Blocks(title="Sampark Mitra", css=CSS, js=GLOBAL_JS) as demo:
 
     router_input       = gr.Textbox(elem_id="router_input",       visible=True)
     hidden_trigger_btn = gr.Button("go", elem_id="hidden_trigger_btn", visible=True)
@@ -1078,4 +945,4 @@ with gr.Blocks(title="Sampark Mitra") as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(css=CSS, js=GLOBAL_JS)
+    demo.launch()
