@@ -1,0 +1,18 @@
+# Sampark Mitra - Rural Emergency Triage Hub
+# Install with: pip install -r requirements.txt
+# System dependency: ffmpeg must be installed separately (e.g. apt install ffmpeg)
+
+# Web UI
+gradio>=5.0.0
+
+# Audio processing (requires ffmpeg on PATH)
+pydub>=0.25.1
+
+# Google Gemma / Generative AI
+google-genai>=1.0.0
+
+# Sarvam AI (STT + TTS)
+sarvamai>=0.1.0
+
+# Geocoding
+geopy>=2.4.0
