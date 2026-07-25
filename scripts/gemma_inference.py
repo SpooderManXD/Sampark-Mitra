@@ -88,19 +88,19 @@ def process_reply(reply: str, lang: str):
     clean_text = reply
 
     if "[REQUEST_IMAGE]" in reply:
-        print("\n📷 IMAGE REQUIRED")
+        print("\n IMAGE REQUIRED")
         clean_text = reply.replace("[REQUEST_IMAGE]", "").strip()
 
     elif "[EMERGENCY]" in reply:
-        print("\n🚨 EMERGENCY")
+        print("\n EMERGENCY")
         clean_text = reply.replace("[EMERGENCY]", "").strip()
 
     elif "[TRIAGE_COMPLETE]" in reply:
-        print("\n✅ TRIAGE COMPLETE")
+        print("\n TRIAGE COMPLETE")
         clean_text = reply.replace("[TRIAGE_COMPLETE]", "").strip()
 
     else:
-        print("\n🤖 Assistant")
+        print("\n Assistant")
 
     print(clean_text)
     # Speak the output text

@@ -1,9 +1,9 @@
 """
-Sampark Bhai - Rural Emergency Triage Hub UI (Modularized)
-Imports logic from:
-  - gemma_inference.py (ask_gemma)
-  - sarvam_STT.py (transcribe)
-  - sarvam_TTS.py (speech)
+Sampark Bhai - Rural Emergency Triage Hub UI
+Integrates:
+  - Gemma AI Health Triage (gemma_inference.py)
+  - Sarvam STT & TTS (sarvam_STT.py, sarvam_TTS.py)
+  - Interactive Floating Language Dashboard & Dynamic Orb Navigation
 """
 
 import os
@@ -13,32 +13,16 @@ import gradio as gr
 from geopy.geocoders import Nominatim
 from sarvamai import SarvamAI
 
-# ---------------------------------------------------------------------------
-# 1. IMPORT FROM YOUR BACKEND MODULES
-# ---------------------------------------------------------------------------
-try:
-    from gemma_inference import ask_gemma
-except ImportError:
-    print("Warning: gemma_inference.py not found. Using fallback mock.")
-    def ask_gemma(msg): 
-        return "[TRIAGE_COMPLETE] System in offline mode. Please seek nearest medical aid."
-
-try:
-    from sarvam_STT import transcribe
-except ImportError:
-    transcribe = None
-
-try:
-    from sarvam_TTS import speech as sarvam_local_speech
-except ImportError:
-    sarvam_local_speech = None
-
+# Direct imports from your backend script modules
+from gemma_inference import ask_gemma
+from sarvam_STT import transcribe
+from sarvam_TTS import speech as sarvam_local_speech
 
 # ---------------------------------------------------------------------------
-# 2. CLIENT SETUP & GLOBALS
+# 1. SETUP CLIENTS & GLOBALS
 # ---------------------------------------------------------------------------
 sarvam_key = os.environ.get("SARVAM_API_KEY")
-sarvam_client = SarvamAI(api_subscription_key=sarvam_key) if sarvam_key else None
+sarvam_client = SarvamAI(api_subscription_key=sarvam_key)
 geolocator = Nominatim(user_agent="sampark_bhai_app")
 
 LANGUAGES = [
@@ -55,50 +39,40 @@ LANGUAGES = [
     {"word": "Click to Start", "lang": "English",  "code": "en-IN", "back": "Back Home",     "top": "82%", "left": "60%", "delay": "0.9s", "rot": "2deg"},
 ]
 
-# Map language name to code for TTS
 LANG_CODE_MAP = {item["lang"]: item["code"] for item in LANGUAGES}
 
-
 # ---------------------------------------------------------------------------
-# 3. HELPER UTILITIES
+# 2. HELPER UTILITIES
 # ---------------------------------------------------------------------------
 def resolve_location(lat=21.1938, lon=81.2849):
     """Converts coordinates to location string via GeoPy."""
-    try:
-        location = geolocator.reverse(f"{lat}, {lon}")
-        address = location.raw.get('address', {})
-        place = (
-            address.get('village') or 
-            address.get('town') or 
-            address.get('city') or 
-            address.get('subdistrict') or 
-            "Local Area"
-        )
-        state = address.get('state', '')
-        return f"{place}, {state}".strip(", ")
-    except Exception:
-        return "Local Clinic Area, Chhattisgarh"
+    location = geolocator.reverse(f"{lat}, {lon}")
+    address = location.raw.get('address', {})
+    place = (
+        address.get('village') or 
+        address.get('town') or 
+        address.get('city') or 
+        address.get('subdistrict') or 
+        "Local Area"
+    )
+    state = address.get('state', '')
+    return f"{place}, {state}".strip(", ")
 
 
 def generate_audio_file(text, lang_code="hi-IN"):
-    """Converts text to speech audio file for Gradio browser playback."""
-    if not sarvam_client or not text:
-        return None
-    try:
-        response = sarvam_client.text_to_speech.convert(
-            model="bulbul:v3",
-            text=text,
-            target_language_code=lang_code if lang_code else "hi-IN",
-            speaker="shubh"
-        )
-        if hasattr(response, "audios") and response.audios:
-            raw_audio = base64.b64decode(response.audios[0])
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-            temp_file.write(raw_audio)
-            temp_file.close()
-            return temp_file.name
-    except Exception as e:
-        print(f"Audio file generation error: {e}")
+    """Generates audio file via Sarvam AI TTS for Gradio UI playback."""
+    response = sarvam_client.text_to_speech.convert(
+        model="bulbul:v3",
+        text=text,
+        target_language_code=lang_code if lang_code else "hi-IN",
+        speaker="shubh"
+    )
+    if hasattr(response, "audios") and response.audios:
+        raw_audio = base64.b64decode(response.audios[0])
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+        temp_file.write(raw_audio)
+        temp_file.close()
+        return temp_file.name
     return None
 
 
@@ -119,9 +93,8 @@ def parse_response_tags(reply):
 
     return tag, clean_text
 
-
 # ---------------------------------------------------------------------------
-# 4. HTML BUILDERS
+# 3. HTML BUILDERS
 # ---------------------------------------------------------------------------
 def build_home_page():
     scattered_buttons = ""
@@ -349,9 +322,8 @@ function sendTrigger(val) {
 }
 """
 
-
 # ---------------------------------------------------------------------------
-# 5. ROUTER HANDLER
+# 4. ROUTER HANDLER
 # ---------------------------------------------------------------------------
 def handle_route(trigger):
     if trigger == "__HOME__":
@@ -365,29 +337,27 @@ def handle_route(trigger):
         
         location_str = resolve_location()
         
-        # 1. CALL IMPORTED ask_gemma FUNCTION FROM gemma_inference.py
+        # 1. Execute live inference with Gemma
         user_prompt = f"New emergency triage request started in language '{lang_name}' from location: {location_str}"
         raw_reply = ask_gemma(user_prompt)
         
         tag, clean_text = parse_response_tags(raw_reply)
         
-        # 2. GENERATE AUDIO OUTPUT FOR GRADIO WEB PLAYER
+        # 2. Convert response to audio for Gradio browser stream
         audio_file = generate_audio_file(clean_text, lang_code=lang_code)
         
-        # 3. OPTIONALLY TRIGGER LOCAL SPEAKER PLAYBACK VIA sarvam_TTS.py IF AVAILABLE
-        if sarvam_local_speech:
-            try:
-                sarvam_local_speech(clean_text, lang_code)
-            except Exception as e:
-                print(f"Local TTS Playback warning: {e}")
+        # 3. Play via local audio device output
+        try:
+            sarvam_local_speech(clean_text, lang_code)
+        except Exception as e:
+            print(f"Local speech output warning: {e}")
 
         return build_orb_page(tag=tag, response_text=clean_text, back_label=back_label), audio_file
 
     return build_orb_page(), None
 
-
 # ---------------------------------------------------------------------------
-# 6. GRADIO LAYOUT
+# 5. GRADIO LAYOUT
 # ---------------------------------------------------------------------------
 custom_css = """
 footer {display: none !important;}
