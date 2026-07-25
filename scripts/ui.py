@@ -1,69 +1,69 @@
 """
-Sampark Bhai - Rural Emergency Triage Hub UI (Dynamic Language Back Button)
-Integrates:
-  - Gemma AI Health Triage simulation / live fallback
-  - Sarvam STT & TTS fallback handling
-  - Interactive Floating Language Dashboard & Wavy Orb View
+Sampark Bhai - Rural Emergency Triage Hub UI (Modularized)
+Imports logic from:
+  - gemma_inference.py (ask_gemma)
+  - sarvam_STT.py (transcribe)
+  - sarvam_TTS.py (speech)
 """
 
 import os
-import json
 import base64
 import tempfile
 import gradio as gr
-from google import genai
-from google.genai import types
 from geopy.geocoders import Nominatim
 from sarvamai import SarvamAI
 
 # ---------------------------------------------------------------------------
-# 1. SETUP CLIENTS
+# 1. IMPORT FROM YOUR BACKEND MODULES
 # ---------------------------------------------------------------------------
-google_key = os.environ.get("GOOGLE_API_KEY")
+try:
+    from gemma_inference import ask_gemma
+except ImportError:
+    print("Warning: gemma_inference.py not found. Using fallback mock.")
+    def ask_gemma(msg): 
+        return "[TRIAGE_COMPLETE] System in offline mode. Please seek nearest medical aid."
+
+try:
+    from sarvam_STT import transcribe
+except ImportError:
+    transcribe = None
+
+try:
+    from sarvam_TTS import speech as sarvam_local_speech
+except ImportError:
+    sarvam_local_speech = None
+
+
+# ---------------------------------------------------------------------------
+# 2. CLIENT SETUP & GLOBALS
+# ---------------------------------------------------------------------------
 sarvam_key = os.environ.get("SARVAM_API_KEY")
-
-gemma_client = genai.Client(
-    api_key=google_key,
-    http_options=types.HttpOptions(timeout=30_000)
-) if google_key else None
-
 sarvam_client = SarvamAI(api_subscription_key=sarvam_key) if sarvam_key else None
 geolocator = Nominatim(user_agent="sampark_bhai_app")
 
-MODEL_NAME = "gemma-4-26b-a4b-it"
-
-SYSTEM_PROMPT = """
-You are Rural Health Triage AI.
-You ONLY perform medical triage.
-You NEVER diagnose diseases.
-Understand all Indian languages, regional dialects, and mixed language inputs.
-Keep replies under 80 words. Reply in the same language as the user.
-"""
-
-# ---------------------------------------------------------------------------
-# 2. SUPPORTED LANGUAGES, POSITIONS & BACK BUTTON TRANSLATIONS
-# ---------------------------------------------------------------------------
 LANGUAGES = [
-    {"word": "शुरू करें",     "lang": "Hindi",     "back": "वापस जाएं",      "top": "15%", "left": "12%", "delay": "0s",   "rot": "-4deg"},
-    {"word": "தொடங்கு",       "lang": "Tamil",     "back": "முகப்பு",       "top": "22%", "left": "75%", "delay": "0.5s", "rot": "5deg"},
-    {"word": "ప్రారంభించు",    "lang": "Telugu",    "back": "హోమ్",         "top": "35%", "left": "8%",  "delay": "1.2s", "rot": "-3deg"},
-    {"word": "ప్రారంభిసి",    "lang": "Kannada",   "back": "ಮುಖಪುಟ",       "top": "70%", "left": "15%", "delay": "0.8s", "rot": "6deg"},
-    {"word": "শুরু করুন",     "lang": "Bengali",   "back": "হোমে ফিরুন",    "top": "18%", "left": "45%", "delay": "1.5s", "rot": "-2deg"},
-    {"word": "સ્ટાર્ટ કરો",   "lang": "Gujarati",  "back": "પાછા જાઓ",     "top": "75%", "left": "78%", "delay": "0.3s", "rot": "-5deg"},
-    {"word": "सुरू करा",      "lang": "Marathi",   "back": "मुख्यपृष्ठ",    "top": "62%", "left": "48%", "delay": "1.0s", "rot": "4deg"},
-    {"word": "ਸ਼ੁਰੂ ਕਰੋ",    "lang": "Punjabi",   "back": "ਵਾਪਸ ਜਾਓ",     "top": "40%", "left": "82%", "delay": "1.7s", "rot": "-6deg"},
-    {"word": "ଆରମ୍ଭ କରନ୍ତୁ", "lang": "Odia",      "back": "ମୂଳପୃଷ୍ଠା",   "top": "80%", "left": "35%", "delay": "0.6s", "rot": "3deg"},
-    {"word": "শুরু কৰক",      "lang": "Assamese",  "back": "ঘূৰি যাওক",    "top": "50%", "left": "20%", "delay": "1.4s", "rot": "-4deg"},
-    {"word": "Click to Start", "lang": "English",  "back": "Back Home",     "top": "82%", "left": "60%", "delay": "0.9s", "rot": "2deg"},
+    {"word": "शुरू करें",     "lang": "Hindi",     "code": "hi-IN", "back": "वापस जाएं",      "top": "15%", "left": "12%", "delay": "0s",   "rot": "-4deg"},
+    {"word": "தொடங்கு",       "lang": "Tamil",     "code": "ta-IN", "back": "முகப்பு",       "top": "22%", "left": "75%", "delay": "0.5s", "rot": "5deg"},
+    {"word": "ప్రారంభించు",    "lang": "Telugu",    "code": "te-IN", "back": "హోమ్",         "top": "35%", "left": "8%",  "delay": "1.2s", "rot": "-3deg"},
+    {"word": "ప్రారంభిసి",    "lang": "Kannada",   "code": "kn-IN", "back": "ಮುಖಪುಟ",       "top": "70%", "left": "15%", "delay": "0.8s", "rot": "6deg"},
+    {"word": "শুরু করুন",     "lang": "Bengali",   "code": "bn-IN", "back": "হোমে ফিরুন",    "top": "18%", "left": "45%", "delay": "1.5s", "rot": "-2deg"},
+    {"word": "સ્ટાર્ટ કરો",   "lang": "Gujarati",  "code": "gu-IN", "back": "પાછા જાઓ",     "top": "75%", "left": "78%", "delay": "0.3s", "rot": "-5deg"},
+    {"word": "सुरू करा",      "lang": "Marathi",   "code": "mr-IN", "back": "मुख्यपृष्ठ",    "top": "62%", "left": "48%", "delay": "1.0s", "rot": "4deg"},
+    {"word": "ਸ਼ੁਰੂ ਕਰੋ",    "lang": "Punjabi",   "code": "pa-IN", "back": "ਵਾਪਸ ਜਾਓ",     "top": "40%", "left": "82%", "delay": "1.7s", "rot": "-6deg"},
+    {"word": "ଆରମ୍ଭ କରନ୍ତୁ", "lang": "Odia",      "code": "od-IN", "back": "ମୂଳପୃଷ୍ଠା",   "top": "80%", "left": "35%", "delay": "0.6s", "rot": "3deg"},
+    {"word": "শুরু কৰক",      "lang": "Assamese",  "code": "as-IN", "back": "ঘূৰি যাওক",    "top": "50%", "left": "20%", "delay": "1.4s", "rot": "-4deg"},
+    {"word": "Click to Start", "lang": "English",  "code": "en-IN", "back": "Back Home",     "top": "82%", "left": "60%", "delay": "0.9s", "rot": "2deg"},
 ]
 
-session_history = []
+# Map language name to code for TTS
+LANG_CODE_MAP = {item["lang"]: item["code"] for item in LANGUAGES}
+
 
 # ---------------------------------------------------------------------------
-# 3. CORE BACKEND PIPELINE (WITH FALLBACKS)
+# 3. HELPER UTILITIES
 # ---------------------------------------------------------------------------
 def resolve_location(lat=21.1938, lon=81.2849):
-    """Converts coordinates to location string via GeoPy with fallback."""
+    """Converts coordinates to location string via GeoPy."""
     try:
         location = geolocator.reverse(f"{lat}, {lon}")
         address = location.raw.get('address', {})
@@ -77,67 +77,13 @@ def resolve_location(lat=21.1938, lon=81.2849):
         state = address.get('state', '')
         return f"{place}, {state}".strip(", ")
     except Exception:
-        return "Local Clinic Area, Chhattisgarh (Offline Default)"
+        return "Local Clinic Area, Chhattisgarh"
 
 
-def ask_gemma_triage(user_message):
-    """Executes Gemma triage, falling back to a safe mock response if keys are missing."""
-    if not gemma_client:
-        return {
-            "tag": "[TRIAGE_COMPLETE]",
-            "clean_text": "API Key not detected. Mock Triage Mode: Please keep the patient stable, clear airways, and proceed to the nearest community health center."
-        }
-
-    session_history.append({
-        "role": "user",
-        "parts": [{"text": user_message}]
-    })
-
-    try:
-        response = gemma_client.models.generate_content(
-            model=MODEL_NAME,
-            contents=session_history,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.2,
-            )
-        )
-        reply = response.text
-        session_history.append({"role": "model", "parts": [{"text": reply}]})
-
-        tag = "NORMAL"
-        clean_text = reply
-
-        if "[REQUEST_IMAGE]" in reply:
-            tag = "[REQUEST_IMAGE]"
-            clean_text = reply.replace("[REQUEST_IMAGE]", "").strip()
-        elif "[EMERGENCY]" in reply:
-            tag = "[EMERGENCY]"
-            clean_text = reply.replace("[EMERGENCY]", "").strip()
-        elif "[TRIAGE_COMPLETE]" in reply:
-            tag = "[TRIAGE_COMPLETE]"
-            clean_text = reply.replace("[TRIAGE_COMPLETE]", "").strip()
-
-        return {
-            "tag": tag,
-            "clean_text": clean_text
-        }
-
-    except Exception as e:
-        if session_history:
-            session_history.pop()
-        return {
-            "tag": "ERROR",
-            "clean_text": f"Gemma API error: {str(e)}. Proceed to nearest medical aid hub."
-        }
-
-
-def generate_sarvam_tts(text, lang_code="hi-IN"):
-    """Generates audio file via Sarvam AI TTS, falling back gracefully if offline."""
+def generate_audio_file(text, lang_code="hi-IN"):
+    """Converts text to speech audio file for Gradio browser playback."""
     if not sarvam_client or not text:
         return None
-    
     try:
         response = sarvam_client.text_to_speech.convert(
             model="bulbul:v3",
@@ -152,8 +98,27 @@ def generate_sarvam_tts(text, lang_code="hi-IN"):
             temp_file.close()
             return temp_file.name
     except Exception as e:
-        print(f"TTS Fallback Warning: {e}")
+        print(f"Audio file generation error: {e}")
     return None
+
+
+def parse_response_tags(reply):
+    """Extracts UI status tags generated by ask_gemma()."""
+    tag = "NORMAL"
+    clean_text = reply
+
+    if "[REQUEST_IMAGE]" in reply:
+        tag = "[REQUEST_IMAGE]"
+        clean_text = reply.replace("[REQUEST_IMAGE]", "").strip()
+    elif "[EMERGENCY]" in reply:
+        tag = "[EMERGENCY]"
+        clean_text = reply.replace("[EMERGENCY]", "").strip()
+    elif "[TRIAGE_COMPLETE]" in reply:
+        tag = "[TRIAGE_COMPLETE]"
+        clean_text = reply.replace("[TRIAGE_COMPLETE]", "").strip()
+
+    return tag, clean_text
+
 
 # ---------------------------------------------------------------------------
 # 4. HTML BUILDERS
@@ -161,7 +126,6 @@ def generate_sarvam_tts(text, lang_code="hi-IN"):
 def build_home_page():
     scattered_buttons = ""
     for item in LANGUAGES:
-        # Pass both trigger action and the localized back button label to JS
         payload = f"{item['lang']}||{item['back']}"
         scattered_buttons += f"""
         <div class="scattered-tag" 
@@ -266,7 +230,25 @@ def build_home_page():
     </div>
     """
 
-def build_orb_page(back_label="Back Home"):
+
+def build_orb_page(tag="NORMAL", response_text="", back_label="Back Home"):
+    tag_color = "#38bdf8"
+    if tag == "[EMERGENCY]":
+        tag_color = "#ef4444"
+    elif tag == "[REQUEST_IMAGE]":
+        tag_color = "#f59e0b"
+    elif tag == "[TRIAGE_COMPLETE]":
+        tag_color = "#10b981"
+
+    status_card = ""
+    if response_text:
+        status_card = f"""
+        <div style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 16px; padding: 1.2rem; margin-top: 1.5rem; width: 100%; max-width: 550px; color: white; backdrop-filter: blur(12px);">
+            <div style="font-weight: 700; color: {tag_color}; margin-bottom: 6px; font-size: 0.95rem;">STATUS: {tag}</div>
+            <div style="font-size: 1.05rem; line-height: 1.4;">{response_text}</div>
+        </div>
+        """
+
     return f"""
     <style>
         .orb-screen {{
@@ -301,8 +283,8 @@ def build_orb_page(back_label="Back Home"):
             z-index: 5;
         }}
         .wavy-orb {{
-            width: 200px;
-            height: 200px;
+            width: 180px;
+            height: 180px;
             background: radial-gradient(circle at 30% 30%, #38bdf8, #818cf8, #c084fc, #ec4899);
             box-shadow: 0 0 60px rgba(56, 189, 248, 0.8), 0 0 100px rgba(192, 132, 252, 0.5);
             animation: orbBreathe 3s ease-in-out infinite alternate, orbWave 8s linear infinite;
@@ -313,7 +295,7 @@ def build_orb_page(back_label="Back Home"):
                 box-shadow: 0 0 40px rgba(56, 189, 248, 0.6), 0 0 80px rgba(192, 132, 252, 0.4);
             }}
             100% {{
-                transform: scale(1.2);
+                transform: scale(1.18);
                 box-shadow: 0 0 100px rgba(56, 189, 248, 0.95), 0 0 160px rgba(192, 132, 252, 0.8);
             }}
         }}
@@ -333,11 +315,13 @@ def build_orb_page(back_label="Back Home"):
 
         <div class="orb-container">
             <div class="wavy-orb"></div>
+            {status_card}
         </div>
 
         <div></div>
     </div>
     """
+
 
 GLOBAL_JS = """
 function sendTrigger(val) {
@@ -365,25 +349,42 @@ function sendTrigger(val) {
 }
 """
 
+
 # ---------------------------------------------------------------------------
 # 5. ROUTER HANDLER
 # ---------------------------------------------------------------------------
 def handle_route(trigger):
     if trigger == "__HOME__":
-        session_history.clear()
         return build_home_page(), None
 
     if "||" in trigger:
         parts = trigger.split("||")
         lang_name = parts[0]
         back_label = parts[1]
+        lang_code = LANG_CODE_MAP.get(lang_name, "hi-IN")
         
         location_str = resolve_location()
-        data = ask_gemma_triage(f"New medical emergency report initiated in {lang_name} from location: {location_str}")
-        audio_file = generate_sarvam_tts(data.get("clean_text", ""))
-        return build_orb_page(back_label=back_label), audio_file
+        
+        # 1. CALL IMPORTED ask_gemma FUNCTION FROM gemma_inference.py
+        user_prompt = f"New emergency triage request started in language '{lang_name}' from location: {location_str}"
+        raw_reply = ask_gemma(user_prompt)
+        
+        tag, clean_text = parse_response_tags(raw_reply)
+        
+        # 2. GENERATE AUDIO OUTPUT FOR GRADIO WEB PLAYER
+        audio_file = generate_audio_file(clean_text, lang_code=lang_code)
+        
+        # 3. OPTIONALLY TRIGGER LOCAL SPEAKER PLAYBACK VIA sarvam_TTS.py IF AVAILABLE
+        if sarvam_local_speech:
+            try:
+                sarvam_local_speech(clean_text, lang_code)
+            except Exception as e:
+                print(f"Local TTS Playback warning: {e}")
+
+        return build_orb_page(tag=tag, response_text=clean_text, back_label=back_label), audio_file
 
     return build_orb_page(), None
+
 
 # ---------------------------------------------------------------------------
 # 6. GRADIO LAYOUT
