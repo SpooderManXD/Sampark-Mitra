@@ -1,13 +1,13 @@
-from sarvam_STT import transcribe
-from sarvam_TTS import speech
+import os
+from PIL import Image
 from google import genai
 from google.genai import types
-import os
 
 api_key = os.environ.get("GOOGLE_API_KEY")
-client=genai.Client(api_key=api_key,
-                    http_options=types.HttpOptions(timeout=30_000))
-
+client = genai.Client(
+    api_key=api_key,
+    http_options=types.HttpOptions(timeout=30_000)
+)
 
 MODEL = "gemma-4-26b-a4b-it"
 
@@ -38,97 +38,55 @@ or
 [EMERGENCY]
 
 4. Never use any other tags.
-
 5. Keep replies under 80 words.
-
 6. Reply in the same language as the user.
-
 7. Must complete diagnose in 10 questions.
-
-8. At the end Ask the location of the person and suggest the name of a nearby clinic or hospital they can go to, using google search TOOL.
+8. At the end Ask the location of the person and suggest the name...
 """
 
 history = []
 
 
-def ask_gemma(user_message: str):
+def ask_gemma(msg: str, image_path: str = None) -> str:
+    """
+    Sends user message (and optional image filepath) to Gemma model and returns reply.
+    """
+    user_parts = []
+
+    # If an image is provided, open and attach it
+    if image_path and os.path.exists(image_path):
+        try:
+            img = Image.open(image_path)
+            user_parts.append(img)
+            print(f"[Gemma] Attached image from path: {image_path}")
+        except Exception as e:
+            print(f"[Gemma] Error loading image: {e}")
+
+    user_parts.append(msg)
+
     history.append({
         "role": "user",
-        "parts": [{"text": user_message}]
+        "parts": user_parts
     })
 
     try:
-        print("Sending request to Gemma API...")
         response = client.models.generate_content(
             model=MODEL,
             contents=history,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
-                tools=[types.Tool(google_search=types.GoogleSearch())],
                 temperature=0.2,
             )
         )
         reply = response.text
     except Exception as e:
         print(f"\nError during Gemma API call: {e}")
-        # Rollback history so state remains clean
         history.pop()
         return "क्षमा करें, एक तकनीकी समस्या आ गई है।"
 
     history.append({
         "role": "model",
-        "parts": [{"text": reply}]
+        "parts": [reply]
     })
 
     return reply
-
-
-def process_reply(reply: str, lang: str):
-    """Processes Gemma's response tags and triggers speech output."""
-    clean_text = reply
-
-    if "[REQUEST_IMAGE]" in reply:
-        print("\n IMAGE REQUIRED")
-        clean_text = reply.replace("[REQUEST_IMAGE]", "").strip()
-
-    elif "[EMERGENCY]" in reply:
-        print("\n EMERGENCY")
-        clean_text = reply.replace("[EMERGENCY]", "").strip()
-
-    elif "[TRIAGE_COMPLETE]" in reply:
-        print("\n TRIAGE COMPLETE")
-        clean_text = reply.replace("[TRIAGE_COMPLETE]", "").strip()
-
-    else:
-        print("\n Assistant")
-
-    print(clean_text)
-    # Speak the output text
-    speech(clean_text, lang)
-
-
-def main():
-
-    print("Health Assistant Started")
-
-    while True:
-
-        result = transcribe()
-        text = result[0]
-        lang = result[1]
-
-        if not text:
-            continue
-
-        print("\nYou:", text)
-
-        if text.lower() in ["exit", "quit", "stop"]:
-            break
-
-        reply = ask_gemma(text)
-
-        process_reply(reply, lang)
-
-
-if __name__ == "__main__":
-    main()

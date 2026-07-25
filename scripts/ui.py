@@ -4,8 +4,8 @@ Sampark Mitra - Rural Emergency Triage Hub UI
 Pipeline:
   1. Home page: click language word
   2. Orb page: shows "press to talk" in chosen language
-  3. User records via gr.Audio mic in browser
-  4. On stop: transcribe_file() -> ask_gemma() -> generate_audio_file() -> playback
+  3. User records audio or uploads photo when asked
+  4. On stop/upload: transcribe_file() / image -> ask_gemma() -> generate_audio_file() -> playback
 """
 
 import os
@@ -22,20 +22,15 @@ try:
     from gemma_inference import ask_gemma
 except ImportError:
     print("Warning: gemma_inference.py not found. Using mock.")
-    def ask_gemma(msg):
+    def ask_gemma(msg, image_path=None):
         return "[TRIAGE_COMPLETE] System offline. Please seek nearest medical aid."
 
 try:
-    from sarvam_STT import transcribe_file
+    from sarvam_STT import transcribe
 except ImportError:
     print("Warning: sarvam_STT.py not found. Using mock.")
-    def transcribe_file(fp):
+    def transcribe(fp):
         return "Mock transcript for testing", "hi-IN"
-
-try:
-    from sarvam_TTS import speech as sarvam_local_speech
-except ImportError:
-    sarvam_local_speech = None
 
 # ---------------------------------------------------------------------------
 # CLIENTS & GLOBALS
@@ -44,71 +39,76 @@ sarvam_key    = os.environ.get("SARVAM_API_KEY")
 sarvam_client = SarvamAI(api_subscription_key=sarvam_key) if sarvam_key else None
 geolocator    = Nominatim(user_agent="sampark_mitra_app")
 
-# "press_to_talk" = "press to talk" in each language
 LANGUAGES = [
     {
         "word": "शुरू करें",     "lang": "Hindi",    "code": "hi-IN",
-        "back": "वापस जाएं",    "press": "बात करने के लिए दबाएं",
+        "back": "वापस जाएं",    "press": "बात करने के लिए दबाएं", "upload": "फोटो भेजें",
         "top": "15%", "left": "12%", "delay": "0s",   "rot": "-4deg"
     },
     {
         "word": "தொடங்கு",       "lang": "Tamil",    "code": "ta-IN",
-        "back": "முகப்பு",      "press": "பேச அழுத்தவும்",
+        "back": "முகப்பு",      "press": "பேச அழுத்தவும்",        "upload": "படம் அனுப்பவும்",
         "top": "22%", "left": "75%", "delay": "0.5s", "rot": "5deg"
     },
     {
         "word": "ప్రారంభించు",    "lang": "Telugu",   "code": "te-IN",
-        "back": "హోమ్",         "press": "మాట్లాడటానికి నొక్కండి",
+        "back": "హోమ్",         "press": "మాట్లాడటానికి నొక్కండి", "upload": "ఫోటో పంపండి",
         "top": "35%", "left": "8%",  "delay": "1.2s", "rot": "-3deg"
     },
     {
         "word": "ಪ್ರಾರಂಭಿಸಿ",    "lang": "Kannada",  "code": "kn-IN",
-        "back": "ಮುಖಪುಟ",       "press": "ಮಾತನಾಡಲು ಒತ್ತಿರಿ",
+        "back": "ಮುಖಪುಟ",       "press": "ಮಾತನಾಡಲು ಒತ್ತಿರಿ",       "upload": "ಚಿತ್ರ ಕಳುಹಿಸಿ",
         "top": "70%", "left": "15%", "delay": "0.8s", "rot": "6deg"
     },
     {
         "word": "শুরু করুন",     "lang": "Bengali",  "code": "bn-IN",
-        "back": "হোমে ফিরুন",   "press": "কথা বলতে চাপুন",
+        "back": "হোমে ফিরুন",   "press": "কথা বলতে চাপুন",       "upload": "ছবি পাঠান",
         "top": "18%", "left": "45%", "delay": "1.5s", "rot": "-2deg"
     },
     {
         "word": "સ્ટાર્ટ કરો",   "lang": "Gujarati", "code": "gu-IN",
-        "back": "પાછા જાઓ",     "press": "બોલવા માટે દબાવો",
+        "back": "પાછા જાઓ",     "press": "બોલવા માટે દબાવો",      "upload": "ફોટો મોકલો",
         "top": "75%", "left": "78%", "delay": "0.3s", "rot": "-5deg"
     },
     {
         "word": "सुरू करा",      "lang": "Marathi",  "code": "mr-IN",
-        "back": "मुख्यपृष्ठ",   "press": "बोलण्यासाठी दाबा",
+        "back": "मुख्यपृष्ठ",   "press": "बोलण्यासाठी दाबा",      "upload": "फोटो पाठवा",
         "top": "62%", "left": "48%", "delay": "1.0s", "rot": "4deg"
     },
     {
         "word": "ਸ਼ੁਰੂ ਕਰੋ",    "lang": "Punjabi",  "code": "pa-IN",
-        "back": "ਵਾਪਸ ਜਾਓ",    "press": "ਗੱਲ ਕਰਨ ਲਈ ਦਬਾਓ",
+        "back": "ਵਾਪਸ ਜਾਓ",    "press": "ਗੱਲ ਕਰਨ ਲਈ ਦਬਾਓ",      "upload": "ਫੋਟੋ ਭੇਜੋ",
         "top": "40%", "left": "82%", "delay": "1.7s", "rot": "-6deg"
     },
     {
         "word": "ଆରମ୍ଭ କରନ୍ତୁ", "lang": "Odia",     "code": "od-IN",
-        "back": "ମୂଳପୃଷ୍ଠା",   "press": "କଥା ହେବାକୁ ଦବାନ୍ତୁ",
+        "back": "ମୂଳପୃଷ୍ଠା",   "press": "କଥା ହେବାକୁ ଦବାନ୍ତୁ",     "upload": "ଫଟୋ ପଠାନ୍ତୁ",
         "top": "80%", "left": "35%", "delay": "0.6s", "rot": "3deg"
     },
     {
         "word": "শুরু কৰক",      "lang": "Assamese", "code": "as-IN",
-        "back": "ঘূৰি যাওক",    "press": "কথা পাতিবলৈ টিপক",
+        "back": "ঘূৰি যাওক",    "press": "কথা পাতিবলৈ টিপক",      "upload": "ছবি পঠিয়াওক",
         "top": "50%", "left": "20%", "delay": "1.4s", "rot": "-4deg"
     },
     {
         "word": "Click to Start", "lang": "English", "code": "en-IN",
-        "back": "Back Home",     "press": "Press to Talk",
+        "back": "Back Home",     "press": "Press to Talk",        "upload": "Upload Photo",
         "top": "82%", "left": "60%", "delay": "0.9s", "rot": "2deg"
     },
 ]
 
-LANG_CODE_MAP  = {item["lang"]: item["code"]  for item in LANGUAGES}
-LANG_PRESS_MAP = {item["lang"]: item["press"] for item in LANGUAGES}
-LANG_BACK_MAP  = {item["lang"]: item["back"]  for item in LANGUAGES}
+LANG_CODE_MAP   = {item["lang"]: item["code"]   for item in LANGUAGES}
+LANG_PRESS_MAP  = {item["lang"]: item["press"]  for item in LANGUAGES}
+LANG_BACK_MAP   = {item["lang"]: item["back"]   for item in LANGUAGES}
+LANG_UPLOAD_MAP = {item["lang"]: item["upload"] for item in LANGUAGES}
 
-# Mutable session state — survives across Gradio handler calls
-_session = {"lang_code": "hi-IN", "back_label": "Back Home", "press_label": "Press to Talk"}
+# Session state across Gradio calls
+_session = {
+    "lang_code": "hi-IN",
+    "back_label": "Back Home",
+    "press_label": "Press to Talk",
+    "upload_label": "Upload Photo"
+}
 
 # ---------------------------------------------------------------------------
 # HELPERS
@@ -125,24 +125,26 @@ def resolve_location(lat=21.1938, lon=81.2849):
 
 
 def generate_audio_file(text, lang_code="hi-IN"):
-    """Call Sarvam TTS, write to temp file, return filepath for gr.Audio."""
-    if not sarvam_client or not text:
+    if not text:
         return None
-    try:
-        response = sarvam_client.text_to_speech.convert(
-            model="bulbul:v3",
-            text=text,
-            target_language_code=lang_code or "hi-IN",
-            speaker="shubh"
-        )
-        if hasattr(response, "audios") and response.audios:
-            raw  = base64.b64decode(response.audios[0])
-            tmp  = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-            tmp.write(raw)
-            tmp.close()
-            return tmp.name
-    except Exception as e:
-        print(f"[TTS] Error: {e}")
+
+    if sarvam_client:
+        try:
+            response = sarvam_client.text_to_speech.convert(
+                model="bulbul:v3",
+                text=text,
+                target_language_code=lang_code or "hi-IN",
+                speaker="shubh"
+            )
+            if hasattr(response, "audios") and response.audios:
+                raw = base64.b64decode(response.audios[0])
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+                tmp.write(raw)
+                tmp.close()
+                return tmp.name
+        except Exception as e:
+            print(f"[TTS] API client error: {e}")
+
     return None
 
 
@@ -157,12 +159,12 @@ def parse_tags(reply):
 
 
 # ---------------------------------------------------------------------------
-# HOME PAGE
+# PAGES
 # ---------------------------------------------------------------------------
 def build_home_page():
     buttons_html = ""
     for item in LANGUAGES:
-        payload = f"{item['lang']}||{item['back']}||{item['press']}"
+        payload = f"{item['lang']}||{item['back']}||{item['press']}||{item['upload']}"
         buttons_html += (
             f'<div class="scattered-tag" '
             f'style="top:{item["top"]};left:{item["left"]};'
@@ -262,16 +264,9 @@ def build_home_page():
 </div>"""
 
 
-# ---------------------------------------------------------------------------
-# ORB PAGE
-# ---------------------------------------------------------------------------
 def build_orb_page(tag="NORMAL", response_text="",
                    back_label="Back Home", press_label="Press to Talk",
-                   mic_state="idle"):
-    """
-    mic_state: "idle" | "recording" | "processing"
-    The mic button label and style change based on state.
-    """
+                   upload_label="Upload Photo", mic_state="idle"):
     tag_color = {
         "[EMERGENCY]":      "#ef4444",
         "[REQUEST_IMAGE]":  "#f59e0b",
@@ -289,7 +284,16 @@ def build_orb_page(tag="NORMAL", response_text="",
           <div class="status-body">{clean}</div>
         </div>"""
 
-    # Mic button appearance per state
+    # Show localized image upload button if Gemma asks for image
+    upload_btn_html = ""
+    if tag == "[REQUEST_IMAGE]":
+        upload_btn_html = f"""
+        <input type="file" id="img_file_input" accept="image/*" style="display:none;" onchange="sendImageToGradio(this)" />
+        <button class="img-btn" onclick="document.getElementById('img_file_input').click()">
+          📷 {upload_label}
+        </button>
+        """
+
     if mic_state == "recording":
         btn_label    = "Recording... tap to stop"
         btn_style    = "mic-btn mic-btn-recording"
@@ -299,7 +303,7 @@ def build_orb_page(tag="NORMAL", response_text="",
         btn_label    = "Processing..."
         btn_style    = "mic-btn mic-btn-processing"
         orb_anim     = "orb-speaking"
-        status_label = "Processing your voice..."
+        status_label = "Processing..."
     else:
         btn_label    = press_label
         btn_style    = "mic-btn mic-btn-idle"
@@ -351,11 +355,10 @@ def build_orb_page(tag="NORMAL", response_text="",
 
   .orb-body {{
     display:flex; flex-direction:column; align-items:center;
-    justify-content:center; flex:1; z-index:5; gap:24px;
+    justify-content:center; flex:1; z-index:5; gap:20px;
     padding:20px 0;
   }}
 
-  /* ORB */
   .wavy-orb {{
     width:190px; height:190px;
     background:radial-gradient(circle at 34% 32%,
@@ -404,7 +407,6 @@ def build_orb_page(tag="NORMAL", response_text="",
   }}
   @keyframes statusBlink {{ 0%,100%{{opacity:.5}} 50%{{opacity:1}} }}
 
-  /* MIC BUTTON */
   .mic-btn {{
     padding:16px 40px; border-radius:100px;
     font-size:1rem; font-weight:600; letter-spacing:.03em;
@@ -438,7 +440,19 @@ def build_orb_page(tag="NORMAL", response_text="",
     cursor:not-allowed;
   }}
 
-  /* STATUS CARD */
+  .img-btn {{
+    padding:14px 32px; border-radius:100px;
+    font-size:.95rem; font-weight:600;
+    background:linear-gradient(135deg,#f59e0b,#d97706);
+    color:white; border:none; cursor:pointer;
+    box-shadow:0 4px 25px rgba(245,158,11,.4);
+    transition:all .2s ease;
+  }}
+  .img-btn:hover {{
+    transform:translateY(-2px);
+    box-shadow:0 6px 35px rgba(245,158,11,.6);
+  }}
+
   .status-card {{
     background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.15);
     border-radius:16px; padding:1.2rem; width:100%; max-width:520px;
@@ -452,7 +466,6 @@ def build_orb_page(tag="NORMAL", response_text="",
     font-size:1rem; line-height:1.55; color:rgba(226,232,240,.9);
   }}
 
-  /* EMERGENCY STRIP */
   .estrip {{
     width:100%; padding:12px 0 0; display:flex; justify-content:center; gap:28px;
     border-top:1px solid rgba(139,92,246,.15);
@@ -470,10 +483,10 @@ def build_orb_page(tag="NORMAL", response_text="",
   <div class="orb-body">
     <div class="wavy-orb {orb_anim}"></div>
     {status_label_html}
-    <button class="{btn_style}" id="mic-toggle-btn"
-            onclick="handleMicClick()">
+    <button class="{btn_style}" id="mic-toggle-btn" onclick="handleMicClick()">
       {btn_label}
     </button>
+    {upload_btn_html}
     {status_card}
   </div>
 
@@ -490,7 +503,6 @@ def build_orb_page(tag="NORMAL", response_text="",
 # JAVASCRIPT
 # ---------------------------------------------------------------------------
 GLOBAL_JS = """
-// ----- Gradio hidden-input bridge -----
 function sendTrigger(val) {
     const container = document.getElementById('router_input');
     const input = container
@@ -508,7 +520,6 @@ function sendTrigger(val) {
     if (btn) btn.click();
 }
 
-// ----- Mic recording state machine -----
 var _mediaRecorder = null;
 var _audioChunks   = [];
 var _isRecording   = false;
@@ -545,7 +556,6 @@ function startRecording() {
 
             _mediaRecorder.start();
 
-            // Update button appearance immediately
             var btn = document.getElementById('mic-toggle-btn');
             if (btn) {
                 btn.textContent = 'Recording... tap to stop';
@@ -561,7 +571,6 @@ function stopRecording() {
     if (_mediaRecorder && _isRecording) {
         _isRecording = false;
         _mediaRecorder.stop();
-        // Show processing state
         var btn = document.getElementById('mic-toggle-btn');
         if (btn) {
             btn.textContent = 'Processing...';
@@ -572,11 +581,9 @@ function stopRecording() {
 }
 
 function sendAudioToGradio(blob) {
-    // Convert blob to base64 and pipe to the hidden audio input component
     var reader = new FileReader();
     reader.onloadend = function() {
         var base64Audio = reader.result;
-        // Write to hidden audio_input_hidden textbox so Python can pick it up
         var container = document.getElementById('audio_b64_input');
         var input     = container
             ? (container.querySelector('textarea') || container.querySelector('input'))
@@ -589,11 +596,34 @@ function sendAudioToGradio(blob) {
             input.dispatchEvent(new Event('input',  {bubbles:true}));
             input.dispatchEvent(new Event('change', {bubbles:true}));
         }
-        // Trigger the audio pipeline button
         var pipeBtn = document.querySelector('#audio_submit_btn button, #audio_submit_btn');
         if (pipeBtn) pipeBtn.click();
     };
     reader.readAsDataURL(blob);
+}
+
+function sendImageToGradio(inputElem) {
+    if (!inputElem.files || !inputElem.files[0]) return;
+    var file = inputElem.files[0];
+    var reader = new FileReader();
+    reader.onloadend = function() {
+        var base64Img = reader.result;
+        var container = document.getElementById('image_b64_input');
+        var input     = container
+            ? (container.querySelector('textarea') || container.querySelector('input'))
+            : null;
+        if (input) {
+            var proto = Object.getPrototypeOf(input);
+            var desc  = Object.getOwnPropertyDescriptor(proto, 'value');
+            if (desc && desc.set) desc.set.call(input, base64Img);
+            else input.value = base64Img;
+            input.dispatchEvent(new Event('input',  {bubbles:true}));
+            input.dispatchEvent(new Event('change', {bubbles:true}));
+        }
+        var imgBtn = document.querySelector('#image_submit_btn button, #image_submit_btn');
+        if (imgBtn) imgBtn.click();
+    };
+    reader.readAsDataURL(file);
 }
 """
 
@@ -602,26 +632,28 @@ function sendAudioToGradio(blob) {
 # HANDLERS
 # ---------------------------------------------------------------------------
 def handle_route(trigger):
-    """Called when a language word is clicked OR back button pressed."""
     global _session
 
     if trigger == "__HOME__":
         return build_home_page(), gr.update(visible=False), None
 
     if "||" in trigger:
-        parts       = trigger.split("||")
-        lang_name   = parts[0]
-        back_label  = parts[1] if len(parts) > 1 else "Back Home"
-        press_label = parts[2] if len(parts) > 2 else "Press to Talk"
-        lang_code   = LANG_CODE_MAP.get(lang_name, "hi-IN")
+        parts        = trigger.split("||")
+        lang_name    = parts[0]
+        back_label   = parts[1] if len(parts) > 1 else "Back Home"
+        press_label  = parts[2] if len(parts) > 2 else "Press to Talk"
+        upload_label = parts[3] if len(parts) > 3 else "Upload Photo"
+        lang_code    = LANG_CODE_MAP.get(lang_name, "hi-IN")
 
-        _session["lang_code"]   = lang_code
-        _session["back_label"]  = back_label
-        _session["press_label"] = press_label
+        _session["lang_code"]    = lang_code
+        _session["back_label"]   = back_label
+        _session["press_label"]  = press_label
+        _session["upload_label"] = upload_label
 
         orb = build_orb_page(
             back_label=back_label,
             press_label=press_label,
+            upload_label=upload_label,
             mic_state="idle"
         )
         return orb, gr.update(visible=True), None
@@ -630,16 +662,12 @@ def handle_route(trigger):
 
 
 def handle_audio_b64(audio_b64: str):
-    """
-    Receives base64-encoded audio blob from the browser JS,
-    saves to a temp WAV file, then runs the full pipeline:
-      transcribe_file() -> ask_gemma() -> generate_audio_file()
-    """
     global _session
 
-    lang_code   = _session.get("lang_code",   "hi-IN")
-    back_label  = _session.get("back_label",  "Back Home")
-    press_label = _session.get("press_label", "Press to Talk")
+    lang_code    = _session.get("lang_code",    "hi-IN")
+    back_label   = _session.get("back_label",   "Back Home")
+    press_label  = _session.get("press_label",  "Press to Talk")
+    upload_label = _session.get("upload_label", "Upload Photo")
 
     def error_page(msg):
         return (
@@ -647,6 +675,7 @@ def handle_audio_b64(audio_b64: str):
                 response_text=msg,
                 back_label=back_label,
                 press_label=press_label,
+                upload_label=upload_label,
                 mic_state="idle"
             ),
             None
@@ -655,51 +684,35 @@ def handle_audio_b64(audio_b64: str):
     if not audio_b64 or len(audio_b64) < 100:
         return error_page("No audio received. Please try again.")
 
-    # Strip data URI header if present (data:audio/wav;base64,...)
     if "," in audio_b64:
         audio_b64 = audio_b64.split(",", 1)[1]
 
     try:
         raw_bytes = base64.b64decode(audio_b64)
-    except Exception as e:
-        print(f"[Audio] Base64 decode error: {e}")
-        return error_page("Audio encoding error. Please try again.")
-
-    # Write to temp file
-    try:
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
         tmp.write(raw_bytes)
         tmp.close()
         filepath = tmp.name
     except Exception as e:
-        print(f"[Audio] File write error: {e}")
-        return error_page("Could not save audio. Please try again.")
+        print(f"[Audio] Error: {e}")
+        return error_page("Audio saving error. Please try again.")
 
-    # STT
     print(f"[Pipeline] Running STT on {filepath}")
-    transcript, detected_lang = transcribe_file(filepath)
+    transcript, detected_lang = transcribe(filepath)
 
     if not transcript:
-        return error_page(
-            "Could not understand the audio. Please speak clearly and try again."
-        )
+        return error_page("Could not understand audio. Please speak clearly.")
 
-    # Use detected language from Sarvam if available
     if detected_lang:
         lang_code = detected_lang
         _session["lang_code"] = lang_code
 
-    print(f"[Pipeline] Transcript={transcript!r}  Lang={lang_code!r}")
-
-    # Gemma
     location_str = resolve_location()
     full_prompt  = f"{transcript}\n[Location: {location_str}]"
     print("[Pipeline] Calling Gemma...")
     raw_reply = ask_gemma(full_prompt)
     tag, clean = parse_tags(raw_reply)
-    print(f"[Pipeline] Gemma tag={tag!r}: {clean[:80]!r}")
 
-    # TTS
     print("[Pipeline] Generating TTS...")
     audio_out = generate_audio_file(clean, lang_code=lang_code)
 
@@ -708,6 +721,60 @@ def handle_audio_b64(audio_b64: str):
         response_text=clean,
         back_label=back_label,
         press_label=press_label,
+        upload_label=upload_label,
+        mic_state="idle"
+    )
+    return orb, audio_out
+
+
+def handle_image_b64(image_b64: str):
+    global _session
+
+    lang_code    = _session.get("lang_code",    "hi-IN")
+    back_label   = _session.get("back_label",   "Back Home")
+    press_label  = _session.get("press_label",  "Press to Talk")
+    upload_label = _session.get("upload_label", "Upload Photo")
+
+    if not image_b64 or len(image_b64) < 100:
+        return build_orb_page(
+            response_text="No image received.",
+            back_label=back_label,
+            press_label=press_label,
+            upload_label=upload_label
+        ), None
+
+    if "," in image_b64:
+        image_b64 = image_b64.split(",", 1)[1]
+
+    try:
+        raw_bytes = base64.b64decode(image_b64)
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+        tmp.write(raw_bytes)
+        tmp.close()
+        img_path = tmp.name
+    except Exception as e:
+        print(f"[Image] Decoding error: {e}")
+        return build_orb_page(
+            response_text="Failed to process image.",
+            back_label=back_label,
+            press_label=press_label,
+            upload_label=upload_label
+        ), None
+
+    location_str = resolve_location()
+    full_prompt  = f"Here is the requested photo of the symptom.\n[Location: {location_str}]"
+    print(f"[Pipeline] Passing image ({img_path}) to Gemma...")
+    raw_reply = ask_gemma(full_prompt, image_path=img_path)
+    tag, clean = parse_tags(raw_reply)
+
+    audio_out = generate_audio_file(clean, lang_code=lang_code)
+
+    orb = build_orb_page(
+        tag=tag,
+        response_text=clean,
+        back_label=back_label,
+        press_label=press_label,
+        upload_label=upload_label,
         mic_state="idle"
     )
     return orb, audio_out
@@ -718,7 +785,7 @@ def handle_audio_b64(audio_b64: str):
 # ---------------------------------------------------------------------------
 CSS = """
 footer {display:none !important;}
-#router_input, #hidden_trigger_btn, #audio_b64_input, #audio_submit_btn {
+#router_input, #hidden_trigger_btn, #audio_b64_input, #audio_submit_btn, #image_b64_input, #image_submit_btn {
     position:fixed !important; left:-9999px !important; top:-9999px !important;
     opacity:0 !important; pointer-events:none !important;
     height:0 !important; width:0 !important; overflow:hidden !important;
@@ -727,16 +794,15 @@ footer {display:none !important;}
 
 with gr.Blocks(title="Sampark Mitra", css=CSS, js=GLOBAL_JS) as demo:
 
-    # --- Hidden routing components ---
     router_input       = gr.Textbox(elem_id="router_input",       visible=True)
     hidden_trigger_btn = gr.Button("go", elem_id="hidden_trigger_btn", visible=True)
 
-    # --- Hidden audio pipeline components ---
-    # JS writes base64 audio here, then clicks audio_submit_btn
-    audio_b64_input  = gr.Textbox(elem_id="audio_b64_input",  visible=True)
-    audio_submit_btn = gr.Button("submit", elem_id="audio_submit_btn", visible=True)
+    audio_b64_input    = gr.Textbox(elem_id="audio_b64_input",    visible=True)
+    audio_submit_btn   = gr.Button("submit_audio", elem_id="audio_submit_btn", visible=True)
 
-    # --- Visible components ---
+    image_b64_input    = gr.Textbox(elem_id="image_b64_input",    visible=True)
+    image_submit_btn   = gr.Button("submit_image", elem_id="image_submit_btn", visible=True)
+
     display_page = gr.HTML(value=build_home_page())
     audio_output = gr.Audio(
         label="Sampark Mitra Response",
@@ -744,17 +810,21 @@ with gr.Blocks(title="Sampark Mitra", css=CSS, js=GLOBAL_JS) as demo:
         visible=False
     )
 
-    # Language word clicked -> show orb page
     hidden_trigger_btn.click(
         fn=handle_route,
         inputs=[router_input],
         outputs=[display_page, audio_output, audio_output]
     )
 
-    # Audio blob received from browser JS -> run full pipeline
     audio_submit_btn.click(
         fn=handle_audio_b64,
         inputs=[audio_b64_input],
+        outputs=[display_page, audio_output]
+    )
+
+    image_submit_btn.click(
+        fn=handle_image_b64,
+        inputs=[image_b64_input],
         outputs=[display_page, audio_output]
     )
 
