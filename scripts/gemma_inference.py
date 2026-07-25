@@ -1,10 +1,13 @@
 from sarvam_STT import transcribe
+from sarvam_TTS import speech
 from google import genai
 from google.genai import types
 import os
 
 api_key = os.environ.get("GOOGLE_API_KEY")
-client=genai.Client(api_key=api_key)
+client=genai.Client(api_key=api_key,
+                    http_options=types.HttpOptions(timeout=30_000))
+
 
 MODEL = "gemma-4-26b-a4b-it"
 
@@ -39,28 +42,38 @@ or
 5. Keep replies under 80 words.
 
 6. Reply in the same language as the user.
+
+7. Must complete diagnose in 10 questions.
+
+8. At the end Ask the location of the person and suggest the name of a nearby clinic or hospital they can go to, using google search TOOL.
 """
 
 history = []
 
 
 def ask_gemma(user_message: str):
-
     history.append({
         "role": "user",
         "parts": [{"text": user_message}]
     })
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=history,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            temperature=0.2,
+    try:
+        print("Sending request to Gemma API...")
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=history,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.2,
+            )
         )
-    )
-
-    reply = response.text
+        reply = response.text
+    except Exception as e:
+        print(f"\nError during Gemma API call: {e}")
+        # Rollback history so state remains clean
+        history.pop()
+        return "क्षमा करें, एक तकनीकी समस्या आ गई है।"
 
     history.append({
         "role": "model",
@@ -70,27 +83,28 @@ def ask_gemma(user_message: str):
     return reply
 
 
-def process_reply(reply: str):
+def process_reply(reply: str, lang: str):
+    """Processes Gemma's response tags and triggers speech output."""
+    clean_text = reply
 
     if "[REQUEST_IMAGE]" in reply:
         print("\n📷 IMAGE REQUIRED")
-        print(reply.replace("[REQUEST_IMAGE]", "").strip())
-
-        # TODO:
-        # Open camera
-        # OR ask user to upload image
+        clean_text = reply.replace("[REQUEST_IMAGE]", "").strip()
 
     elif "[EMERGENCY]" in reply:
         print("\n🚨 EMERGENCY")
-        print(reply.replace("[EMERGENCY]", "").strip())
+        clean_text = reply.replace("[EMERGENCY]", "").strip()
 
     elif "[TRIAGE_COMPLETE]" in reply:
         print("\n✅ TRIAGE COMPLETE")
-        print(reply.replace("[TRIAGE_COMPLETE]", "").strip())
+        clean_text = reply.replace("[TRIAGE_COMPLETE]", "").strip()
 
     else:
         print("\n🤖 Assistant")
-        print(reply)
+
+    print(clean_text)
+    # Speak the output text
+    speech(clean_text, lang)
 
 
 def main():
@@ -99,7 +113,9 @@ def main():
 
     while True:
 
-        text = transcribe()
+        result = transcribe()
+        text = result[0]
+        lang = result[1]
 
         if not text:
             continue
@@ -111,7 +127,7 @@ def main():
 
         reply = ask_gemma(text)
 
-        process_reply(reply)
+        process_reply(reply, lang)
 
 
 if __name__ == "__main__":
