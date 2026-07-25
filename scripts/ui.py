@@ -297,7 +297,7 @@ def build_orb_page(tag="NORMAL", response_text="",
         upload_btn_html = f"""
         <input type="file" id="img_file_input" accept="image/*" style="display:none;" onchange="sendImageToGradio(this)" />
         <button class="img-btn" onclick="document.getElementById('img_file_input').click()">
-          📷 {upload_label}
+          {upload_label}
         </button>
         """
 
