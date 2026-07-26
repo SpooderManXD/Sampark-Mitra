@@ -1,0 +1,76 @@
+<svg viewBox="0 0 1180 220" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,-apple-system,sans-serif">
+  <defs>
+    <linearGradient id="bgL" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050b1a"/>
+      <stop offset="100%" stop-color="#040814"/>
+    </linearGradient>
+    <linearGradient id="chip" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#0c2436"/>
+    </linearGradient>
+  </defs>
+  <rect width="1180" height="220" fill="url(#bgL)"/>
+  <text x="30" y="34" font-size="16" font-weight="800" fill="#e0f2fe">11 languages, one orb</text>
+
+  <!-- 11 chips, 6 + 5 -->
+  <g font-size="13" fill="#e9d5ff">
+    <!-- row1 -->
+    <g>
+      <rect x="30" y="52" width="150" height="58" rx="12" fill="url(#chip)" stroke="#a78bfa" stroke-opacity="0.45"/>
+      <text x="45" y="78" font-size="16" font-weight="700">शुरू करें</text>
+      <text x="45" y="98" font-size="11" fill="#93c5fd">Hindi · hi-IN</text>
+    </g>
+    <g>
+      <rect x="195" y="52" width="150" height="58" rx="12" fill="url(#chip)" stroke="#a78bfa" stroke-opacity="0.45"/>
+      <text x="210" y="78" font-size="16" font-weight="700">தொடங்கு</text>
+      <text x="210" y="98" font-size="11" fill="#93c5fd">Tamil · ta-IN</text>
+    </g>
+    <g>
+      <rect x="360" y="52" width="150" height="58" rx="12" fill="url(#chip)" stroke="#a78bfa" stroke-opacity="0.45"/>
+      <text x="375" y="78" font-size="16" font-weight="700">ప్రారంభించు</text>
+      <text x="375" y="98" font-size="11" fill="#93c5fd">Telugu · te-IN</text>
+    </g>
+    <g>
+      <rect x="525" y="52" width="150" height="58" rx="12" fill="url(#chip)" stroke="#a78bfa" stroke-opacity="0.45"/>
+      <text x="540" y="78" font-size="16" font-weight="700">ಪ್ರಾರಂಭಿಸಿ</text>
+      <text x="540" y="98" font-size="11" fill="#93c5fd">Kannada · kn-IN</text>
+    </g>
+    <g>
+      <rect x="690" y="52" width="150" height="58" rx="12" fill="url(#chip)" stroke="#a78bfa" stroke-opacity="0.45"/>
+      <text x="705" y="78" font-size="16" font-weight="700">শুরু করুন</text>
+      <text x="705" y="98" font-size="11" fill="#93c5fd">Bengali · bn-IN</text>
+    </g>
+    <g>
+      <rect x="855" y="52" width="150" height="58" rx="12" fill="url(#chip)" stroke="#a78bfa" stroke-opacity="0.45"/>
+      <text x="870" y="78" font-size="16" font-weight="700">સ્ટાર્ટ કરો</text>
+      <text x="870" y="98" font-size="11" fill="#93c5fd">Gujarati · gu-IN</text>
+    </g>
+    <g>
+      <rect x="1020" y="52" width="130" height="58" rx="12" fill="url(#chip)" stroke="#a78bfa" stroke-opacity="0.45"/>
+      <text x="1032" y="78" font-size="15" font-weight="700">सुरू करा</text>
+      <text x="1032" y="98" font-size="11" fill="#93c5fd">Marathi · mr-IN</text>
+    </g>
+
+    <!-- row2 -->
+    <g>
+      <rect x="30" y="128" width="150" height="58" rx="12" fill="url(#chip)" stroke="#22d3ee" stroke-opacity="0.4"/>
+      <text x="45" y="154" font-size="16" font-weight="700">ਸ਼ੁਰੂ ਕਰੋ</text>
+      <text x="45" y="174" font-size="11" fill="#67e8f9">Punjabi · pa-IN</text>
+    </g>
+    <g>
+      <rect x="195" y="128" width="170" height="58" rx="12" fill="url(#chip)" stroke="#22d3ee" stroke-opacity="0.4"/>
+      <text x="210" y="154" font-size="16" font-weight="700">ଆରମ୍ଭ କରନ୍ତୁ</text>
+      <text x="210" y="174" font-size="11" fill="#67e8f9">Odia · od-IN</text>
+    </g>
+    <g>
+      <rect x="380" y="128" width="150" height="58" rx="12" fill="url(#chip)" stroke="#22d3ee" stroke-opacity="0.4"/>
+      <text x="395" y="154" font-size="16" font-weight="700">শুরু কৰক</text>
+      <text x="395" y="174" font-size="11" fill="#67e8f9">Assamese · as-IN</text>
+    </g>
+    <g>
+      <rect x="545" y="128" width="190" height="58" rx="12" fill="url(#chip)" stroke="#22d3ee" stroke-opacity="0.4"/>
+      <text x="560" y="154" font-size="16" font-weight="700">Click to Start</text>
+      <text x="560" y="174" font-size="11" fill="#67e8f9">English · en-IN</text>
+    </g>
+  </g>
+</svg>

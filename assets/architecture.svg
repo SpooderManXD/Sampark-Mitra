@@ -1,0 +1,101 @@
+<svg viewBox="0 0 1180 760" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,-apple-system,sans-serif">
+  <defs>
+    <linearGradient id="bgA" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050b1a"/>
+      <stop offset="100%" stop-color="#040814"/>
+    </linearGradient>
+    <linearGradient id="purpleBox" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2e1065"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="cyanBox" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#083344"/>
+      <stop offset="100%" stop-color="#0c2436"/>
+    </linearGradient>
+    <linearGradient id="amberBox" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a2b0a"/>
+      <stop offset="100%" stop-color="#2c1a08"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#67e8f9"/>
+    </marker>
+  </defs>
+
+  <rect width="1180" height="760" fill="url(#bgA)"/>
+  <text x="590" y="40" text-anchor="middle" font-size="22" font-weight="800" fill="#e0f2fe">Sampark Mitra — Request Pipeline</text>
+
+  <!-- Browser -->
+  <rect x="40" y="80" width="300" height="150" rx="16" fill="url(#purpleBox)" stroke="#a78bfa" stroke-opacity="0.5"/>
+  <text x="190" y="108" text-anchor="middle" font-size="15" font-weight="700" fill="#e9d5ff">Browser (Gradio UI)</text>
+  <text x="60" y="135" font-size="12.5" fill="#c4b5fd">• app.py — Blocks layout</text>
+  <text x="60" y="156" font-size="12.5" fill="#c4b5fd">• pages.py — home &amp; orb HTML/CSS</text>
+  <text x="60" y="177" font-size="12.5" fill="#c4b5fd">• GLOBAL_JS — mic capture,</text>
+  <text x="72" y="195" font-size="12.5" fill="#c4b5fd">geolocation, image upload</text>
+  <text x="60" y="216" font-size="12.5" fill="#c4b5fd">• autoplay &lt;audio&gt; response</text>
+
+  <!-- Handlers -->
+  <rect x="440" y="80" width="300" height="150" rx="16" fill="url(#cyanBox)" stroke="#22d3ee" stroke-opacity="0.5"/>
+  <text x="590" y="108" text-anchor="middle" font-size="15" font-weight="700" fill="#a5f3fc">handlers.py</text>
+  <text x="460" y="135" font-size="12.5" fill="#a5e9f0">• handle_route — language pick,</text>
+  <text x="472" y="153" font-size="12.5" fill="#a5e9f0">home ⇄ orb routing</text>
+  <text x="460" y="174" font-size="12.5" fill="#a5e9f0">• handle_audio_b64 — decode,</text>
+  <text x="472" y="192" font-size="12.5" fill="#a5e9f0">webm→wav (pydub/ffmpeg), validate</text>
+  <text x="460" y="213" font-size="12.5" fill="#a5e9f0">• handle_image_b64 — decode photo</text>
+
+  <!-- backend -->
+  <rect x="840" y="80" width="300" height="150" rx="16" fill="url(#amberBox)" stroke="#fbbf24" stroke-opacity="0.5"/>
+  <text x="990" y="108" text-anchor="middle" font-size="15" font-weight="700" fill="#fde68a">backend.py</text>
+  <text x="860" y="135" font-size="12.5" fill="#fcd34d">• transcribe() wrapper</text>
+  <text x="860" y="153" font-size="12.5" fill="#fcd34d">• generate_audio_file() (TTS)</text>
+  <text x="860" y="171" font-size="12.5" fill="#fcd34d">• resolve_location() (geopy)</text>
+  <text x="860" y="189" font-size="12.5" fill="#fcd34d">• parse_tags(), LANGUAGES data</text>
+  <text x="860" y="207" font-size="12.5" fill="#fcd34d">• default_session_state()</text>
+
+  <!-- arrows row1 -->
+  <path d="M340,155 H440" stroke="#67e8f9" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M740,155 H840" stroke="#67e8f9" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Services row -->
+  <text x="590" y="290" text-anchor="middle" font-size="14" font-weight="700" fill="#94a3b8">external services</text>
+
+  <rect x="60" y="320" width="260" height="120" rx="14" fill="#111827" stroke="#38bdf8" stroke-opacity="0.5"/>
+  <text x="190" y="348" text-anchor="middle" font-size="14" font-weight="700" fill="#7dd3fc">sarvam_STT.py</text>
+  <text x="80" y="372" font-size="12" fill="#bae6fd">Sarvam AI — saaras:v3</text>
+  <text x="80" y="390" font-size="12" fill="#bae6fd">sync (&lt;=30s) or batch job</text>
+  <text x="80" y="408" font-size="12" fill="#bae6fd">→ (transcript, language_code)</text>
+
+  <rect x="460" y="320" width="260" height="150" rx="14" fill="#111827" stroke="#a78bfa" stroke-opacity="0.6"/>
+  <text x="590" y="348" text-anchor="middle" font-size="14" font-weight="700" fill="#d8b4fe">gemma_inference.py</text>
+  <text x="480" y="372" font-size="12" fill="#e9d5ff">Google Gemma (gemma-4-26b-a4b-it)</text>
+  <text x="480" y="390" font-size="12" fill="#e9d5ff">system prompt: rural triage rules</text>
+  <text x="480" y="408" font-size="12" fill="#e9d5ff">Google Search grounding tool</text>
+  <text x="480" y="426" font-size="12" fill="#e9d5ff">per-session chat history</text>
+  <text x="480" y="444" font-size="12" fill="#e9d5ff">tags: [REQUEST IMAGE] / [EMERGENCY]</text>
+  <text x="480" y="461" font-size="12" fill="#e9d5ff">/ [TRIAGE COMPLETE]</text>
+
+  <rect x="860" y="320" width="260" height="120" rx="14" fill="#111827" stroke="#fb923c" stroke-opacity="0.55"/>
+  <text x="990" y="348" text-anchor="middle" font-size="14" font-weight="700" fill="#fdba74">sarvam_TTS.py</text>
+  <text x="880" y="372" font-size="12" fill="#fed7aa">Sarvam AI — bulbul:v3</text>
+  <text x="880" y="390" font-size="12" fill="#fed7aa">speaker: shubh</text>
+  <text x="880" y="408" font-size="12" fill="#fed7aa">standalone PyAudio playback</text>
+  <text x="880" y="426" font-size="12" fill="#fed7aa">(CLI/local test utility)</text>
+
+  <!-- arrows backend to services -->
+  <path d="M990,230 V300 M990,300 H190 V320" stroke="#67e8f9" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M990,300 H590 V320" stroke="#67e8f9" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M990,300 V320" stroke="#67e8f9" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- flow explanation strip -->
+  <rect x="40" y="500" width="1100" height="220" rx="16" fill="#0b1324" stroke="#1e293b"/>
+  <text x="60" y="530" font-size="15" font-weight="700" fill="#e2e8f0">End-to-end voice turn</text>
+
+  <g font-size="13" fill="#cbd5e1">
+    <text x="60" y="560">1</text><text x="85" y="560">User taps a language word on the home page → orb page renders "press to talk".</text>
+    <text x="60" y="585">2</text><text x="85" y="585">Mic recording (webm, browser MediaRecorder) is base64-sent → handlers.py converts to 16kHz mono WAV.</text>
+    <text x="60" y="610">3</text><text x="85" y="610">backend.transcribe() calls sarvam_STT → (transcript, detected language).</text>
+    <text x="60" y="635">4</text><text x="85" y="635">Prompt + resolved location (geopy reverse geocode) → gemma_inference.ask_gemma().</text>
+    <text x="60" y="660">5</text><text x="85" y="660">Gemma replies with a triage tag (NORMAL / REQUEST IMAGE / EMERGENCY / TRIAGE COMPLETE),</text>
+    <text x="85" y="678">grounding on Google Search for real nearby hospitals when triage completes.</text>
+    <text x="60" y="700">6</text><text x="85" y="700">backend.generate_audio_file() (Sarvam bulbul:v3 TTS) renders reply audio → autoplays in browser.</text>
+  </g>
+</svg>
