@@ -17,7 +17,7 @@ def build_home_page():
     mobile_buttons_html = ""
 
     for item in LANGUAGES:
-        payload = f"{item['lang']}||{item['back']}||{item['press']}||{item['upload']}"
+        payload = f"{item['lang']}||{item['back']}||{item['press']}||{item['upload']}||{item['recording']}||{item['processing']}"
         buttons_html += (
             f'<div class="scattered-tag" '
             f'style="top:{item["top"]};left:{item["left"]};'
@@ -158,7 +158,9 @@ def build_home_page():
 def build_orb_page(tag="NORMAL", response_text="",
                    back_label="Back Home", press_label="Press to Talk",
                    upload_label="Upload Photo", mic_state="idle",
-                   ready_label="Ready for Health Triage", show_ready=True):
+                   ready_label="Ready for Health Triage", show_ready=True,
+                   recording_label="Recording... tap to stop",
+                   processing_label="Processing..."):
     tag_color = {
         "[EMERGENCY]":      "#ef4444",
         "[REQUEST IMAGE]":  "#f59e0b",
@@ -187,15 +189,15 @@ def build_orb_page(tag="NORMAL", response_text="",
         """
 
     if mic_state == "recording":
-        btn_label    = "Recording... tap to stop"
+        btn_label    = recording_label
         btn_style    = "mic-btn mic-btn-recording"
         orb_anim     = "orb-speaking"
         status_label = "Listening..."
     elif mic_state == "processing":
-        btn_label    = "Processing..."
+        btn_label    = processing_label
         btn_style    = "mic-btn mic-btn-processing"
         orb_anim     = "orb-speaking"
-        status_label = "Processing..."
+        status_label = processing_label
     else:
         btn_label    = press_label
         btn_style    = "mic-btn mic-btn-idle"
@@ -422,7 +424,10 @@ def build_orb_page(tag="NORMAL", response_text="",
     {ready_html}
     <div class="wavy-orb {orb_anim}" id="main-orb"></div>
     {status_label_html}
-    <button class="{btn_style}" id="mic-toggle-btn" onclick="handleMicClick()">
+    <button class="{btn_style}" id="mic-toggle-btn" onclick="handleMicClick()"
+      data-idle-label="{press_label}"
+      data-recording-label="{recording_label}"
+      data-processing-label="{processing_label}">
       {btn_label}
     </button>
     {upload_btn_html}

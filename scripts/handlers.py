@@ -24,6 +24,8 @@ from backend import (
     parse_tags,
     LANG_CODE_MAP,
     LANG_READY_MAP,
+    LANG_RECORDING_MAP,
+    LANG_PROCESSING_MAP,
 )
 from pages import build_home_page, build_orb_page
 
@@ -105,7 +107,7 @@ function startRecording() {
 
             var btn = document.getElementById('mic-toggle-btn');
             if (btn) {
-                btn.textContent = 'Recording... tap to stop';
+                btn.textContent = btn.dataset.recordingLabel || 'Recording... tap to stop';
                 btn.className   = 'mic-btn mic-btn-recording';
             }
         })
@@ -120,7 +122,7 @@ function stopRecording() {
         _mediaRecorder.stop();
         var btn = document.getElementById('mic-toggle-btn');
         if (btn) {
-            btn.textContent = 'Processing...';
+            btn.textContent = btn.dataset.processingLabel || 'Processing...';
             btn.className   = 'mic-btn mic-btn-processing';
             btn.disabled    = true;
         }
@@ -361,25 +363,31 @@ def handle_route(trigger, session_state):
         return build_home_page(), gr.update(visible=False), None, session_state
 
     if "||" in trigger:
-        parts        = trigger.split("||")
-        lang_name    = parts[0]
-        back_label   = parts[1] if len(parts) > 1 else "Back Home"
-        press_label  = parts[2] if len(parts) > 2 else "Press to Talk"
-        upload_label = parts[3] if len(parts) > 3 else "Upload Photo"
-        lang_code    = LANG_CODE_MAP.get(lang_name, "hi-IN")
-        ready_label  = LANG_READY_MAP.get(lang_name, "Ready for Health Triage")
+        parts            = trigger.split("||")
+        lang_name        = parts[0]
+        back_label       = parts[1] if len(parts) > 1 else "Back Home"
+        press_label      = parts[2] if len(parts) > 2 else "Press to Talk"
+        upload_label     = parts[3] if len(parts) > 3 else "Upload Photo"
+        recording_label  = parts[4] if len(parts) > 4 else LANG_RECORDING_MAP.get(lang_name, "Recording... tap to stop")
+        processing_label = parts[5] if len(parts) > 5 else LANG_PROCESSING_MAP.get(lang_name, "Processing...")
+        lang_code        = LANG_CODE_MAP.get(lang_name, "hi-IN")
+        ready_label      = LANG_READY_MAP.get(lang_name, "Ready for Health Triage")
 
-        session_state["lang_code"]    = lang_code
-        session_state["back_label"]   = back_label
-        session_state["press_label"]  = press_label
-        session_state["upload_label"] = upload_label
-        session_state["ready_label"]  = ready_label
+        session_state["lang_code"]         = lang_code
+        session_state["back_label"]        = back_label
+        session_state["press_label"]       = press_label
+        session_state["upload_label"]      = upload_label
+        session_state["ready_label"]       = ready_label
+        session_state["recording_label"]   = recording_label
+        session_state["processing_label"]  = processing_label
 
         orb = build_orb_page(
             back_label=back_label,
             press_label=press_label,
             upload_label=upload_label,
             ready_label=ready_label,
+            recording_label=recording_label,
+            processing_label=processing_label,
             show_ready=True,
             mic_state="idle"
         )
@@ -395,11 +403,13 @@ def handle_audio_b64(audio_b64: str, session_state, request: gr.Request):
     # A stable per-browser-tab id from Gradio's own connection, used to keep each visitor's Gemma triage history separate (see gemma_inference.py session_id).
     session_id = request.session_hash if request else "default"
 
-    lang_code    = session_state.get("lang_code",    "hi-IN")
-    back_label   = session_state.get("back_label",   "Back Home")
-    press_label  = session_state.get("press_label",  "Press to Talk")
-    upload_label = session_state.get("upload_label", "Upload Photo")
-    ready_label  = session_state.get("ready_label",  "Ready for Health Triage")
+    lang_code         = session_state.get("lang_code",         "hi-IN")
+    back_label        = session_state.get("back_label",        "Back Home")
+    press_label       = session_state.get("press_label",       "Press to Talk")
+    upload_label      = session_state.get("upload_label",      "Upload Photo")
+    ready_label       = session_state.get("ready_label",       "Ready for Health Triage")
+    recording_label   = session_state.get("recording_label",   "Recording... tap to stop")
+    processing_label  = session_state.get("processing_label",  "Processing...")
 
     def error_page(msg):
         return (
@@ -409,6 +419,8 @@ def handle_audio_b64(audio_b64: str, session_state, request: gr.Request):
                 press_label=press_label,
                 upload_label=upload_label,
                 ready_label=ready_label,
+                recording_label=recording_label,
+                processing_label=processing_label,
                 show_ready=False,
                 mic_state="idle"
             ),
@@ -534,6 +546,8 @@ def handle_audio_b64(audio_b64: str, session_state, request: gr.Request):
         press_label=press_label,
         upload_label=upload_label,
         ready_label=ready_label,
+        recording_label=recording_label,
+        processing_label=processing_label,
         show_ready=False,
         mic_state="idle"
     )
@@ -546,11 +560,13 @@ def handle_image_b64(image_b64: str, session_state, request: gr.Request):
 
     session_id = request.session_hash if request else "default"
 
-    lang_code    = session_state.get("lang_code",    "hi-IN")
-    back_label   = session_state.get("back_label",   "Back Home")
-    press_label  = session_state.get("press_label",  "Press to Talk")
-    upload_label = session_state.get("upload_label", "Upload Photo")
-    ready_label  = session_state.get("ready_label",  "Ready for Health Triage")
+    lang_code         = session_state.get("lang_code",         "hi-IN")
+    back_label        = session_state.get("back_label",        "Back Home")
+    press_label       = session_state.get("press_label",       "Press to Talk")
+    upload_label      = session_state.get("upload_label",      "Upload Photo")
+    ready_label       = session_state.get("ready_label",       "Ready for Health Triage")
+    recording_label   = session_state.get("recording_label",   "Recording... tap to stop")
+    processing_label  = session_state.get("processing_label",  "Processing...")
 
     if not image_b64 or len(image_b64) < 100:
         return build_orb_page(
@@ -559,6 +575,8 @@ def handle_image_b64(image_b64: str, session_state, request: gr.Request):
             press_label=press_label,
             upload_label=upload_label,
             ready_label=ready_label,
+            recording_label=recording_label,
+            processing_label=processing_label,
             show_ready=False
         ), None, session_state
 
@@ -589,6 +607,8 @@ def handle_image_b64(image_b64: str, session_state, request: gr.Request):
             press_label=press_label,
             upload_label=upload_label,
             ready_label=ready_label,
+            recording_label=recording_label,
+            processing_label=processing_label,
             show_ready=False
         ), None, session_state
 
@@ -609,6 +629,8 @@ def handle_image_b64(image_b64: str, session_state, request: gr.Request):
         press_label=press_label,
         upload_label=upload_label,
         ready_label=ready_label,
+        recording_label=recording_label,
+        processing_label=processing_label,
         show_ready=False,
         mic_state="idle"
     )

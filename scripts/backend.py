@@ -73,75 +73,88 @@ LANGUAGES = [
         "word": "शुरू करें",     "lang": "Hindi",    "code": "hi-IN",
         "back": "वापस जाएं",    "press": "बात करने के लिए दबाएं", "upload": "फोटो भेजें",
         "ready": "स्वास्थ्य ट्राइएज के लिए तैयार",
+        "recording": "रिकॉर्डिंग हो रही है... रोकने के लिए दबाएं", "processing": "प्रोसेस हो रहा है...",
         "top": "15%", "left": "12%", "delay": "0s",   "rot": "-4deg"
     },
     {
         "word": "தொடங்கு",       "lang": "Tamil",    "code": "ta-IN",
         "back": "முகப்பு",      "press": "பேச அழுத்தவும்",        "upload": "படம் அனுப்பவும்",
         "ready": "சுகாதார த்ரியேஜுக்கு தயார்",
+        "recording": "பதிவு செய்யப்படுகிறது... நிறுத்த அழுத்தவும்", "processing": "செயலாக்கம் நடைபெறுகிறது...",
         "top": "22%", "left": "75%", "delay": "0.5s", "rot": "5deg"
     },
     {
         "word": "ప్రారంభించు",    "lang": "Telugu",   "code": "te-IN",
         "back": "హోమ్",         "press": "మాట్లాడటానికి నొక్కండి", "upload": "ఫోటో పంపండి",
         "ready": "ఆరోగ్య ట్రయాజ్ కోసం సిద్ధంగా ఉంది",
+        "recording": "రికార్డింగ్ జరుగుతోంది... ఆపడానికి నొక్కండి", "processing": "ప్రాసెస్ అవుతోంది...",
         "top": "35%", "left": "8%",  "delay": "1.2s", "rot": "-3deg"
     },
     {
         "word": "ಪ್ರಾರಂಭಿಸಿ",    "lang": "Kannada",  "code": "kn-IN",
         "back": "ಮುಖಪುಟ",       "press": "ಮಾತನಾಡಲು ಒತ್ತಿರಿ",       "upload": "ಚಿತ್ರ ಕಳುಹಿಸಿ",
         "ready": "ಆರೋಗ್ಯ ಟ್ರಯಾಜ್‌ಗೆ ಸಿದ್ಧವಾಗಿದೆ",
+        "recording": "ರೆಕಾರ್ಡಿಂಗ್ ಆಗುತ್ತಿದೆ... ನಿಲ್ಲಿಸಲು ಒತ್ತಿರಿ", "processing": "ಪ್ರಕ್ರಿಯೆಗೊಳ್ಳುತ್ತಿದೆ...",
         "top": "70%", "left": "15%", "delay": "0.8s", "rot": "6deg"
     },
     {
         "word": "শুরু করুন",     "lang": "Bengali",  "code": "bn-IN",
         "back": "হোমে ফিরুন",   "press": "কথা বলতে চাপুন",       "upload": "ছবি পাঠান",
         "ready": "স্বাস্থ্য ট্রাইয়েজের জন্য প্রস্তুত",
+        "recording": "রেকর্ডিং হচ্ছে... থামাতে চাপুন", "processing": "প্রক্রিয়াকরণ হচ্ছে...",
         "top": "18%", "left": "45%", "delay": "1.5s", "rot": "-2deg"
     },
     {
         "word": "સ્ટાર્ટ કરો",   "lang": "Gujarati", "code": "gu-IN",
         "back": "પાછા જાઓ",     "press": "બોલવા માટે દબાવો",      "upload": "ફોટો મોકલો",
         "ready": "આરોગ્ય ટ્રાઇએજ માટે તૈયાર",
+        "recording": "રેકોર્ડિંગ થઈ રહ્યું છે... રોકવા માટે દબાવો", "processing": "પ્રક્રિયા થઈ રહી છે...",
         "top": "75%", "left": "78%", "delay": "0.3s", "rot": "-5deg"
     },
     {
         "word": "सुरू करा",      "lang": "Marathi",  "code": "mr-IN",
         "back": "मुख्यपृष्ठ",   "press": "बोलण्यासाठी दाबा",      "upload": "फोटो पाठवा",
         "ready": "आरोग्य ट्रायेजसाठी तयार",
+        "recording": "रेकॉर्डिंग सुरू आहे... थांबवण्यासाठी दाबा", "processing": "प्रक्रिया सुरू आहे...",
         "top": "62%", "left": "48%", "delay": "1.0s", "rot": "4deg"
     },
     {
         "word": "ਸ਼ੁਰੂ ਕਰੋ",    "lang": "Punjabi",  "code": "pa-IN",
         "back": "ਵਾਪਸ ਜਾਓ",    "press": "ਗੱਲ ਕਰਨ ਲਈ ਦਬਾਓ",      "upload": "ਫੋਟੋ ਭੇਜੋ",
         "ready": "ਸਿਹਤ ਟ੍ਰਾਇਏਜ ਲਈ ਤਿਆਰ",
+        "recording": "ਰਿਕਾਰਡਿੰਗ ਹੋ ਰਹੀ ਹੈ... ਰੋਕਣ ਲਈ ਦਬਾਓ", "processing": "ਪ੍ਰੋਸੈਸਿੰਗ ਹੋ ਰਹੀ ਹੈ...",
         "top": "40%", "left": "82%", "delay": "1.7s", "rot": "-6deg"
     },
     {
         "word": "ଆରମ୍ଭ କରନ୍ତୁ", "lang": "Odia",     "code": "od-IN",
         "back": "ମୂଳପୃଷ୍ଠା",   "press": "କଥା ହେବାକୁ ଦବାନ୍ତୁ",     "upload": "ଫଟୋ ପଠାନ୍ତୁ",
         "ready": "ସ୍ୱାସ୍ଥ୍ୟ ଟ୍ରାଏଜ ପାଇଁ ପ୍ରସ୍ତୁତ",
+        "recording": "ରେକର୍ଡିଂ ହେଉଛି... ବନ୍ଦ କରିବାକୁ ଦବାନ୍ତୁ", "processing": "ପ୍ରକ୍ରିୟାକରଣ ହେଉଛି...",
         "top": "80%", "left": "35%", "delay": "0.6s", "rot": "3deg"
     },
     {
         "word": "শুরু কৰক",      "lang": "Assamese", "code": "as-IN",
         "back": "ঘূৰি যাওক",    "press": "কথা পাতিবলৈ টিপক",      "upload": "ছবি পঠিয়াওক",
         "ready": "স্বাস্থ্য ট্ৰাইয়েজৰ বাবে সাজু",
+        "recording": "ৰেকৰ্ডিং হৈ আছে... বন্ধ কৰিবলৈ টিপক", "processing": "প্ৰক্ৰিয়াকৰণ চলি আছে...",
         "top": "50%", "left": "20%", "delay": "1.4s", "rot": "-4deg"
     },
     {
         "word": "Click to Start", "lang": "English", "code": "en-IN",
         "back": "Back Home",     "press": "Press to Talk",        "upload": "Upload Photo",
         "ready": "Ready for Health Triage",
+        "recording": "Recording... tap to stop", "processing": "Processing...",
         "top": "82%", "left": "60%", "delay": "0.9s", "rot": "2deg"
     },
 ]
 
-LANG_CODE_MAP   = {item["lang"]: item["code"]   for item in LANGUAGES}
-LANG_PRESS_MAP  = {item["lang"]: item["press"]  for item in LANGUAGES}
-LANG_BACK_MAP   = {item["lang"]: item["back"]   for item in LANGUAGES}
-LANG_UPLOAD_MAP = {item["lang"]: item["upload"] for item in LANGUAGES}
-LANG_READY_MAP  = {item["lang"]: item["ready"]  for item in LANGUAGES}
+LANG_CODE_MAP       = {item["lang"]: item["code"]       for item in LANGUAGES}
+LANG_PRESS_MAP      = {item["lang"]: item["press"]      for item in LANGUAGES}
+LANG_BACK_MAP       = {item["lang"]: item["back"]       for item in LANGUAGES}
+LANG_UPLOAD_MAP     = {item["lang"]: item["upload"]     for item in LANGUAGES}
+LANG_READY_MAP      = {item["lang"]: item["ready"]      for item in LANGUAGES}
+LANG_RECORDING_MAP  = {item["lang"]: item["recording"]  for item in LANGUAGES}
+LANG_PROCESSING_MAP = {item["lang"]: item["processing"] for item in LANGUAGES}
 
 # Per-browser-session state.
 # threaded through each handler explicitly instead.
@@ -151,7 +164,9 @@ def default_session_state():
         "back_label": "Back Home",
         "press_label": "Press to Talk",
         "upload_label": "Upload Photo",
-        "ready_label": "Ready for Health Triage"
+        "ready_label": "Ready for Health Triage",
+        "recording_label": "Recording... tap to stop",
+        "processing_label": "Processing..."
     }
 
 # ---------------------------------------------------------------------------
